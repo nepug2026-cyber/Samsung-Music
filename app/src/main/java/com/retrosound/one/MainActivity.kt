@@ -208,11 +208,20 @@ class MainActivity : Activity() {
         /** Only a direct user tap from the local, trusted UI invokes this method. */
         @JavascriptInterface fun activateSource(sourceId: String) {
             runOnUiThread {
-                if (sourceId != "local") SourceSessions.activateFromPhone(this@MainActivity, sourceId)
+                if (sourceId != "local") {
+                    val result = SourceSessions.activateFromPhone(this@MainActivity, sourceId)
+                    browser.evaluateJavascript("window.retroSourceResult?.(" + JSONObject.quote(sourceId) + "," + JSONObject.quote(result) + ")", null)
+                }
             }
         }
         @JavascriptInterface fun mediaCommand(command: String, sourceId: String) {
-            runOnUiThread { SourceSessions.command(this@MainActivity, sourceId, command) }
+            runOnUiThread {
+                val ok = SourceSessions.command(this@MainActivity, sourceId, command)
+                browser.evaluateJavascript("window.retroMediaResult?.(" + JSONObject.quote(sourceId) + "," + ok.toString() + ")", null)
+            }
+        }
+        @JavascriptInterface fun openMusicService(sourceId: String) {
+            runOnUiThread { SourceSessions.openFromPhone(this@MainActivity, sourceId) }
         }
         @JavascriptInterface fun haptic(intensity: Int) {
             if (intensity <= 0) return

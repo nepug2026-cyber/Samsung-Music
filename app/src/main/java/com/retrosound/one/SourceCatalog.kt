@@ -84,10 +84,14 @@ object SourceSessions {
             true
         } catch (_: Exception) { false }
     }
-    fun activateFromPhone(context: Context, id: String) {
-        if (resumeAlreadyActive(context, id)) return
-        val pkg = SourceCatalog.byId[id]?.packageName ?: return
-        val launch = context.packageManager.getLaunchIntentForPackage(pkg) ?: return
-        try { context.startActivity(launch) } catch (_: Exception) { }
+    fun activateFromPhone(context: Context, id: String): String {
+        if (!hasAccess(context)) return "permission"
+        if (controller(context, id) == null) return "inactive"
+        return if (resumeAlreadyActive(context, id)) "resumed" else "inactive"
+    }
+    fun openFromPhone(context: Context, id: String): Boolean {
+        val pkg = SourceCatalog.byId[id]?.packageName ?: return false
+        val launch = context.packageManager.getLaunchIntentForPackage(pkg) ?: return false
+        return try { context.startActivity(launch); true } catch (_: Exception) { false }
     }
 }
