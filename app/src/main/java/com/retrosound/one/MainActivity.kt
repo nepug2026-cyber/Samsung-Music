@@ -11,6 +11,12 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.Settings
+import android.provider.DocumentsContract
+import android.net.Uri
+import android.webkit.WebResourceResponse
+import java.io.File
+import java.io.FileInputStream
+import org.json.JSONArray
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -27,6 +33,8 @@ class MainActivity : Activity() {
     private lateinit var browser: WebView
     private var fileCallback: ValueCallback<Array<android.net.Uri>>? = null
     private val filePickerRequest = 108
+    private val folderPickerRequest = 109
+    private val libraryDir by lazy { File(filesDir, "music_library").apply { mkdirs() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,6 +48,17 @@ class MainActivity : Activity() {
             settings.allowUniversalAccessFromFileURLs = false
             settings.mediaPlaybackRequiresUserGesture = true
             webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+                    val u = request?.url ?: return null
+                    if (u.scheme == "https" && u.host == "retrosound.local" && u.path?.startsWith("/audio/") == true) {
+                        val filename = u.lastPathSegment ?: return null
+                        if (!filename.matches(Regex("[0-9]+\\.audio"))) return null
+                        val f = File(libraryDir, filename)
+                        if (!f.isFile) return null
+                        return WebResourceResponse("audio/mpeg", null, FileInputStream(f))
+                    }
+                    return super.shouldInterceptRequest(view, request)
+                }
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                     val url = request.url.toString()
                     return !url.startsWith("file:///android_asset/demo/")
@@ -72,6 +91,7 @@ class MainActivity : Activity() {
         }
         setContentView(browser)
         browser.loadUrl("file:///android_asset/demo/index.html")
+        browser.postDelayed({ loadSavedFolder() }, 1100)
         requestAudioPermission()
     }
 
@@ -84,6 +104,17 @@ class MainActivity : Activity() {
     @Deprecated("Compatibility callback for Android 10+")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == folderPickerRequest) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                val uri = data.data!!
+                try {
+                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    getSharedPreferences("local_folder", MODE_PRIVATE).edit().putString("uri", uri.toString()).apply()
+                    scanFolder(uri)
+                } catch (_: Exception) { browser.evaluateJavascript("window.retroNativeFolderError?.(\u0027Не удалось открыть папку\u0027)", null) }
+            }
+            return
+        }
         if (requestCode == filePickerRequest) {
             val result = if (resultCode == RESULT_OK) WebChromeClient.FileChooserParams.parseResult(resultCode, data)
                          else null
@@ -92,7 +123,56 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun loadSavedFolder() {
+        val saved = getSharedPreferences("local_folder", MODE_PRIVATE).getString("uri", null) ?: return
+        try { scanFolder(Uri.parse(saved)) } catch (_: Exception) { }
+    }
+
+    private fun scanFolder(root: Uri) {
+        Thread {
+            try {
+                val items = JSONArray()
+                libraryDir.listFiles()?.forEach { it.delete() }
+                fun visit(docId: String, depth: Int) {
+                    if (depth > 12 || items.length() >= 300) return
+                    val children = DocumentsContract.buildChildDocumentsUriUsingTree(root, docId)
+                    contentResolver.query(children, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                        DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE), null, null, null)?.use { cursor ->
+                        val idCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                        val nameCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                        val mimeCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+                        while (cursor.moveToNext() && items.length() < 300) {
+                            val id = cursor.getString(idCol)
+                            val name = cursor.getString(nameCol) ?: continue
+                            val mime = cursor.getString(mimeCol) ?: ""
+                            if (mime == DocumentsContract.Document.MIME_TYPE_DIR) { visit(id, depth + 1); continue }
+                            if (!mime.startsWith("audio/") && !name.matches(Regex("(?i).*\\.(mp3|m4a|aac|ogg|wav|flac|opus)"))) continue
+                            val source = DocumentsContract.buildDocumentUriUsingTree(root, id)
+                            val index = items.length()
+                            val target = File(libraryDir, "$index.audio")
+                            try {
+                                contentResolver.openInputStream(source)?.use { input -> target.outputStream().use { input.copyTo(it) } }
+                                if (target.length() > 0) items.put(JSONObject().put("title", name.substringBeforeLast('.')).put("artist", "Моя музыка")
+                                    .put("album", "Музыка телефона").put("src", "https://retrosound.local/audio/$index.audio"))
+                            } catch (_: Exception) { target.delete() }
+                        }
+                    }
+                }
+                visit(DocumentsContract.getTreeDocumentId(root), 0)
+                val json = items.toString()
+                runOnUiThread { browser.evaluateJavascript("window.retroNativeTracks?.($json)", null) }
+            } catch (_: Exception) { runOnUiThread { browser.evaluateJavascript("window.retroNativeFolderError?.('Ошибка чтения папки')", null) } }
+        }.start()
+    }
+
     private inner class Bridge {
+        @JavascriptInterface fun pickMusicFolder() {
+            runOnUiThread {
+                try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                }, folderPickerRequest) } catch (_: Exception) { }
+            }
+        }
         @JavascriptInterface fun saveState(payload: String) {
             try {
                 val obj = JSONObject(payload)
