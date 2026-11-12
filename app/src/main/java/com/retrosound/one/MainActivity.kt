@@ -162,7 +162,7 @@ class MainActivity : Activity() {
                             val mime = cursor.getString(mimeCol) ?: ""
                             if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
                                 stack.add(id to depth + 1)
-                            } else if (mime.startsWith("audio/") || name.matches(Regex("(?i).*\\\\.(mp3|m4a|aac|ogg|wav|flac|opus)"))) {
+                            } else if (mime.startsWith("audio/") || name.matches(Regex("(?i).*\\.(mp3|m4a|aac|ogg|wav|flac|opus)"))) {
                                 val key = folderUris.size.toString()
                                 folderUris[key] = DocumentsContract.buildDocumentUriUsingTree(root, id)
                                 items.put(JSONObject().put("title", name.substringBeforeLast('.'))
