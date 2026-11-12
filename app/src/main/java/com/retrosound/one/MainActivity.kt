@@ -16,6 +16,8 @@ import android.net.Uri
 import android.webkit.WebResourceResponse
 import java.io.File
 import java.io.FileInputStream
+import java.io.InputStream
+import java.io.BufferedInputStream
 import org.json.JSONArray
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
@@ -34,7 +36,8 @@ class MainActivity : Activity() {
     private var fileCallback: ValueCallback<Array<android.net.Uri>>? = null
     private val filePickerRequest = 108
     private val folderPickerRequest = 109
-    private val libraryDir by lazy { File(filesDir, "music_library").apply { mkdirs() } }
+    private val folderPrefs by lazy { getSharedPreferences("local_folder", MODE_PRIVATE) }
+    private val folderUris = java.util.concurrent.ConcurrentHashMap<String, Uri>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,11 +54,15 @@ class MainActivity : Activity() {
                 override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                     val u = request?.url ?: return null
                     if (u.scheme == "https" && u.host == "retrosound.local" && u.path?.startsWith("/audio/") == true) {
-                        val filename = u.lastPathSegment ?: return null
-                        if (!filename.matches(Regex("[0-9]+\\.audio"))) return null
-                        val f = File(libraryDir, filename)
-                        if (!f.isFile) return null
-                        return WebResourceResponse("audio/mpeg", null, FileInputStream(f))
+                        val id = u.lastPathSegment ?: return null
+                        val uri = folderUris[id] ?: return null
+                        return try {
+                            val mime = contentResolver.getType(uri)?.takeIf { it.startsWith("audio/") } ?: "audio/mpeg"
+                            val stream = contentResolver.openInputStream(uri) ?: return null
+                            WebResourceResponse(mime, null, stream).apply {
+                                responseHeaders = mapOf("Access-Control-Allow-Origin" to "*", "Cache-Control" to "no-store")
+                            }
+                        } catch (_: Exception) { null }
                     }
                     return super.shouldInterceptRequest(view, request)
                 }
@@ -109,7 +116,7 @@ class MainActivity : Activity() {
                 val uri = data.data!!
                 try {
                     contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    getSharedPreferences("local_folder", MODE_PRIVATE).edit().putString("uri", uri.toString()).apply()
+                    folderPrefs.edit().putString("uri", uri.toString()).apply()
                     scanFolder(uri)
                 } catch (_: Exception) { browser.evaluateJavascript("window.retroNativeFolderError?.(\'Не удалось открыть папку\')", null) }
             }
@@ -124,44 +131,53 @@ class MainActivity : Activity() {
     }
 
     private fun loadSavedFolder() {
-        val saved = getSharedPreferences("local_folder", MODE_PRIVATE).getString("uri", null) ?: return
+        val saved = folderPrefs.getString("uri", null) ?: return
         try { scanFolder(Uri.parse(saved)) } catch (_: Exception) { }
     }
 
     private fun scanFolder(root: Uri) {
         Thread {
             try {
+                val granted = contentResolver.persistedUriPermissions.any { it.uri == root && it.isReadPermission }
+                if (!granted) throw SecurityException("Доступ к папке не сохранён. Выберите её повторно.")
                 val items = JSONArray()
-                libraryDir.listFiles()?.forEach { it.delete() }
-                fun visit(docId: String, depth: Int) {
-                    if (depth > 12 || items.length() >= 300) return
+                folderUris.clear()
+                val stack = java.util.ArrayDeque<Pair<String, Int>>()
+                stack.add(DocumentsContract.getTreeDocumentId(root) to 0)
+                while (!stack.isEmpty()) {
+                    val (docId, depth) = stack.removeLast()
+                    if (depth > 32) continue
                     val children = DocumentsContract.buildChildDocumentsUriUsingTree(root, docId)
-                    contentResolver.query(children, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                        DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE), null, null, null)?.use { cursor ->
+                    contentResolver.query(children, arrayOf(
+                        DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                        DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                        DocumentsContract.Document.COLUMN_MIME_TYPE
+                    ), null, null, null)?.use { cursor ->
                         val idCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
                         val nameCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
                         val mimeCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
-                        while (cursor.moveToNext() && items.length() < 300) {
+                        while (cursor.moveToNext()) {
                             val id = cursor.getString(idCol)
                             val name = cursor.getString(nameCol) ?: continue
                             val mime = cursor.getString(mimeCol) ?: ""
-                            if (mime == DocumentsContract.Document.MIME_TYPE_DIR) { visit(id, depth + 1); continue }
-                            if (!mime.startsWith("audio/") && !name.matches(Regex("(?i).*\\.(mp3|m4a|aac|ogg|wav|flac|opus)"))) continue
-                            val source = DocumentsContract.buildDocumentUriUsingTree(root, id)
-                            val index = items.length()
-                            val target = File(libraryDir, "$index.audio")
-                            try {
-                                contentResolver.openInputStream(source)?.use { input -> target.outputStream().use { input.copyTo(it) } }
-                                if (target.length() > 0) items.put(JSONObject().put("title", name.substringBeforeLast('.')).put("artist", "Моя музыка")
-                                    .put("album", "Музыка телефона").put("src", "https://retrosound.local/audio/$index.audio"))
-                            } catch (_: Exception) { target.delete() }
+                            if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
+                                stack.add(id to depth + 1)
+                            } else if (mime.startsWith("audio/") || name.matches(Regex("(?i).*\\\\.(mp3|m4a|aac|ogg|wav|flac|opus)"))) {
+                                val key = folderUris.size.toString()
+                                folderUris[key] = DocumentsContract.buildDocumentUriUsingTree(root, id)
+                                items.put(JSONObject().put("title", name.substringBeforeLast('.'))
+                                    .put("artist", "Моя музыка").put("album", "Музыка телефона")
+                                    .put("src", "https://retrosound.local/audio/$key"))
+                            }
                         }
                     }
                 }
-                visit(DocumentsContract.getTreeDocumentId(root), 0)
                 val json = items.toString()
                 runOnUiThread { browser.evaluateJavascript("window.retroNativeTracks?.($json)", null) }
-            } catch (_: Exception) { runOnUiThread { browser.evaluateJavascript("window.retroNativeFolderError?.('Ошибка чтения папки')", null) } }
+            } catch (e: Exception) {
+                val message = JSONObject.quote(e.message ?: "Ошибка чтения папки")
+                runOnUiThread { browser.evaluateJavascript("window.retroNativeFolderError?.($message)", null) }
+            }
         }.start()
     }
 
