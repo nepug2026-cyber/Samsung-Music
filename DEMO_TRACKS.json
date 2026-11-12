@@ -1,0 +1,82 @@
+[
+  {
+    "id": "neon-road",
+    "title": "Неоновый маршрут",
+    "artist": "RetroSound Studio",
+    "album": "Город после полуночи",
+    "filename": "neon-road.mp3",
+    "bpm": 118
+  },
+  {
+    "id": "golden-disco",
+    "title": "Золотой диско-шар",
+    "artist": "RetroSound Studio",
+    "album": "Субботняя ночь",
+    "filename": "golden-disco.mp3",
+    "bpm": 122
+  },
+  {
+    "id": "midnight-jazz",
+    "title": "Полуночный квартал",
+    "artist": "RetroSound Studio",
+    "album": "Свет джаз-клуба",
+    "filename": "midnight-jazz.mp3",
+    "bpm": 94
+  },
+  {
+    "id": "street-groove",
+    "title": "Городской грув",
+    "artist": "RetroSound Studio",
+    "album": "Бит большого города",
+    "filename": "street-groove.mp3",
+    "bpm": 96
+  },
+  {
+    "id": "electric-shuffle",
+    "title": "Электрический шаффл",
+    "artist": "RetroSound Studio",
+    "album": "Контуры движения",
+    "filename": "electric-shuffle.mp3",
+    "bpm": 130
+  },
+  {
+    "id": "river-waltz",
+    "title": "Вальс у реки",
+    "artist": "RetroSound Studio",
+    "album": "Старинные вечера",
+    "filename": "river-waltz.mp3",
+    "bpm": 84
+  },
+  {
+    "id": "scarlet-tango",
+    "title": "Алое танго",
+    "artist": "RetroSound Studio",
+    "album": "Театр теней",
+    "filename": "scarlet-tango.mp3",
+    "bpm": 108
+  },
+  {
+    "id": "island-salsa",
+    "title": "Солнечный берег",
+    "artist": "RetroSound Studio",
+    "album": "Ритмы океана",
+    "filename": "island-salsa.mp3",
+    "bpm": 106
+  },
+  {
+    "id": "velvet-rock",
+    "title": "Бархатный рок",
+    "artist": "RetroSound Studio",
+    "album": "Открытая дорога",
+    "filename": "velvet-rock.mp3",
+    "bpm": 126
+  },
+  {
+    "id": "fairy-ball",
+    "title": "Сказочный бал",
+    "artist": "RetroSound Studio",
+    "album": "Лесные огни",
+    "filename": "fairy-ball.mp3",
+    "bpm": 76
+  }
+]
