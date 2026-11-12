@@ -111,7 +111,7 @@ class MainActivity : Activity() {
                     contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     getSharedPreferences("local_folder", MODE_PRIVATE).edit().putString("uri", uri.toString()).apply()
                     scanFolder(uri)
-                } catch (_: Exception) { browser.evaluateJavascript("window.retroNativeFolderError?.(\u0027Не удалось открыть папку\u0027)", null) }
+                } catch (_: Exception) { browser.evaluateJavascript("window.retroNativeFolderError?.(\'Не удалось открыть папку\')", null) }
             }
             return
         }
