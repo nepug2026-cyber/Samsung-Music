@@ -71,6 +71,19 @@ object SourceSessions {
             true
         } catch (_: Exception) { false }
     }
+    fun command(context: Context, id: String, action: String): Boolean {
+        val player = controller(context, id) ?: return false
+        return try {
+            when (action) {
+                "next" -> player.transportControls.skipToNext()
+                "previous" -> player.transportControls.skipToPrevious()
+                "toggle" -> if (player.playbackState?.state == PlaybackState.STATE_PLAYING)
+                    player.transportControls.pause() else player.transportControls.play()
+                else -> return false
+            }
+            true
+        } catch (_: Exception) { false }
+    }
     fun activateFromPhone(context: Context, id: String) {
         if (resumeAlreadyActive(context, id)) return
         val pkg = SourceCatalog.byId[id]?.packageName ?: return

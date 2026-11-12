@@ -195,6 +195,9 @@ class MainActivity : Activity() {
                 if (sourceId != "local") SourceSessions.activateFromPhone(this@MainActivity, sourceId)
             }
         }
+        @JavascriptInterface fun mediaCommand(command: String, sourceId: String) {
+            runOnUiThread { SourceSessions.command(this@MainActivity, sourceId, command) }
+        }
         @JavascriptInterface fun haptic(intensity: Int) {
             if (intensity <= 0) return
             runOnUiThread {
