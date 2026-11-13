@@ -31,7 +31,7 @@ function gotoSettings(tab){settingsTab=tab||'appearance';setScreen('settings')}
 let previewSource=state.source;
 function renderSourceCarousel(){const v=visible();if(!v.includes(previewSource))previewSource=v[0]||'local';const i=v.indexOf(previewSource);const box=$('sourceCarousel');box.replaceChildren();for(const [d,cl] of [[-1,'prev'],[0,'current'],[1,'next']]){if(v.length===1&&d!==0)continue;const src=v[(i+d+v.length)%v.length];const button=document.createElement('button');button.className='source-card '+cl;button.type='button';button.textContent=sourceNames[src]+(d===0&&src!==state.source?' · Нажмите для подключения':'');button.setAttribute('aria-current',d===0?'true':'false');button.onclick=()=>d===0?confirmSource(src):previewOnly(src);box.append(button)}}
 function previewOnly(src){previewSource=src;vibration();renderSourceCarousel();notify('Предпросмотр: '+sourceNames[src]+'. Нажмите по центру ещё раз для подключения.')}
-function confirmSource(src){if(src===state.source){notify(sourceNames[src]+' уже выбран');return}state.source=src;previewSource=src;save();vibration();if(src!=='local'){audio.pause();window.AndroidBridge?.activateSource(src);notify('Проверяю медиасессию: '+sourceNames[src]+'. Экран сервиса не открываю.')}else notify('Выбрана музыка телефона');renderSourceCarousel();renderCarrier();renderPlayback()}
+function confirmSource(src){if(src===state.source){notify(sourceNames[src]+' уже выбран');return}state.source=src;previewSource=src;save();vibration();if(src!=='local'){audio.pause();window.AndroidBridge?.pauseNative?.();window.AndroidBridge?.activateSource(src);notify('Проверяю медиасессию: '+sourceNames[src]+'. Экран сервиса не открываю.')}else notify('Выбрана музыка телефона');renderSourceCarousel();renderCarrier();renderPlayback()}
 window.retroSourceResult=function(src,result){if(src!==state.source)return;if(result==='resumed')notify('Управление '+sourceNames[src]+' подключено без перехода в приложение.');else if(result==='permission')notify('Для управления сервисами разрешите доступ к уведомлениям в настройках Android.');else notify('Медиасессия '+sourceNames[src]+' неактивна. Запустите музыку в сервисе один раз, затем вернитесь сюда.');};
 window.retroMediaResult=function(src,ok){if(src===state.source&&!ok)notify('Нет активной медиасессии '+sourceNames[src]+'. Откройте сервис и запустите трек.');};
 function selectSource(src){previewOnly(src)}
@@ -66,7 +66,7 @@ else {window.AndroidBridge?.pauseNative?.();audio.src=s.file?URL.createObjectURL
 async function createAnalyzer(){try{if(playContext)return;const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;playContext=new AC();const src=playContext.createMediaElementSource(audio);analyser=playContext.createAnalyser();analyser.fftSize=256;freqs=new Uint8Array(analyser.frequencyBinCount);src.connect(analyser);analyser.connect(playContext.destination)}catch(e){notify('Аудиоанализ недоступен: '+e.message)}}
 async function playMusic(){if(nativeTrack()){
  const key=localTracks[currentLocalIndex].src.slice(7);
- window.AndroidBridge?.playNativeKey?.(key);
+ window.AndroidBridge?.playNativeKey?.(key,currentSong().title);
  notify('Запускаю через Android Media3: '+currentSong().title);
  return;
 }
@@ -133,6 +133,7 @@ $('haptic').oninput=e=>{state.haptic=Number(e.target.value);save();$('hapticValu
 $('chooseFallback').onclick=()=>$('fallbackInput').click();$('fallbackInput').onchange=e=>{const file=e.target.files?.[0];if(!file)return;if(fallbackUrl.startsWith('blob:'))URL.revokeObjectURL(fallbackUrl);fallbackUrl=URL.createObjectURL(file);renderCarrier()};$('quality').onchange=e=>{state.quality=e.target.value;save()};$('failEnable').onchange=e=>{state.failover=e.target.checked;save();$('failMessage').textContent=state.failover?'Включено':'Отключено'};$('errorOnly').onchange=e=>{state.errorOnly=e.target.checked;save()};$('testFail').onclick=()=>tryFailover('тестовая ошибка');
 $('enableNativeMedia').onclick=()=>{if(window.AndroidBridge?.requestSessionAccess)window.AndroidBridge.requestSessionAccess();else notify('В APK откроется экран Android: Доступ к уведомлениям → RetroSound One. В браузерном демо разрешение недоступно.')};
 $('resetSources').onclick=()=>{state.order=ids.slice();state.hidden=['tidal'];state.source='local';save();renderSourceEntries();renderSourceCarousel();renderCarrier()};
+setInterval(()=>{if(nativeTrack())window.AndroidBridge?.requestNativeState?.()},1000);
 window.retroNativeState=function(x){
  nativePlaying=!!x.playing;
  nativeDuration=Math.max(0,Number(x.duration)||0);
