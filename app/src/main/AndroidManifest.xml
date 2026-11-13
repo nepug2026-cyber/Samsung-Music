@@ -15,7 +15,7 @@
         <package android:name="com.spotify.music" />
         <package android:name="com.aspiro.tidal" />
     </queries>
-    <application android:label="RetroSound One RC1" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:theme="@style/Theme.RetroSound"
+    <application android:label="RetroSound One 1.4 Test" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:theme="@style/Theme.RetroSound"
        android:usesCleartextTraffic="false" android:allowBackup="true" android:supportsRtl="true">
        <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
        <service android:name="com.retrosound.one.CarMediaService" android:exported="true"
