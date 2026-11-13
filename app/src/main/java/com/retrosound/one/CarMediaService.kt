@@ -5,6 +5,8 @@ import android.content.ContentUris
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.MediaStore
+import android.net.Uri
+import org.json.JSONArray
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -31,6 +33,24 @@ class CarMediaService : MediaLibraryService() {
     private val demos = "rs:demo"
     private val phone = "rs:phone"
     private val sources = "rs:sources"
+    private val picked = "rs:picked-folder"
+    private fun savedFolderTracks(): List<MediaItem> {
+        val raw = getSharedPreferences("local_folder", MODE_PRIVATE).getString("tracks", "[]") ?: "[]"
+        return try {
+            val data = JSONArray(raw)
+            (0 until data.length()).mapNotNull { i ->
+                val value = data.optJSONObject(i) ?: return@mapNotNull null
+                val path = value.optString("uri")
+                if (!path.startsWith("content://")) return@mapNotNull null
+                MediaItem.Builder().setMediaId("rs:saf:$i").setUri(Uri.parse(path))
+                    .setMediaMetadata(MediaMetadata.Builder()
+                        .setTitle(value.optString("title", "Композиция"))
+                        .setArtist(value.optString("artist", "Моя музыка"))
+                        .setAlbumTitle(value.optString("album", "Выбранная папка"))
+                        .setIsPlayable(true).setIsBrowsable(false).build()).build()
+            }
+        } catch (_: Exception) { emptyList() }
+    }
 
     private fun folder(id: String, title: String, subtitle: String? = null): MediaItem =
         MediaItem.Builder().setMediaId(id).setMediaMetadata(
@@ -93,6 +113,7 @@ class CarMediaService : MediaLibraryService() {
     private fun getById(mediaId: String): MediaItem? = when {
         mediaId.startsWith("rs:demo:") -> DemoAudio.items.firstOrNull { it.mediaId == mediaId }
         mediaId.startsWith("rs:music:") -> phoneTracks().firstOrNull { it.mediaId == mediaId }
+        mediaId.startsWith("rs:saf:") -> savedFolderTracks().firstOrNull { it.mediaId == mediaId }
         else -> null
     }
 
@@ -126,10 +147,12 @@ class CarMediaService : MediaLibraryService() {
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
             val all: List<MediaItem> = when {
                 parentId == root -> listOf(
+                    folder(picked, "Выбранная папка телефона", "Сохранённые аудиофайлы"),
                     folder(demos, "Демо: 10 композиций"),
                     folder(phone, "Музыка телефона"),
                     folder(sources, "Переключить источник", "По вашему порядку"))
                 parentId == demos -> DemoAudio.items
+                parentId == picked -> savedFolderTracks()
                 parentId == phone -> phoneTracks()
                 parentId == sources -> sourceItems()
                 parentId.startsWith("rs:hint:") -> listOf(
@@ -149,7 +172,10 @@ class CarMediaService : MediaLibraryService() {
             mediaItems: List<MediaItem>
         ): ListenableFuture<List<MediaItem>> {
             if (switchExternal(mediaItems)) return Futures.immediateFuture(emptyList())
-            return Futures.immediateFuture(mediaItems.mapNotNull { getById(it.mediaId) })
+            return Futures.immediateFuture(mediaItems.mapNotNull { item ->
+                if (item.mediaId.startsWith("rs:saf:") && item.localConfiguration?.uri?.scheme == "content") item
+                else getById(item.mediaId)
+            })
         }
 
         override fun onSetMediaItems(
@@ -163,7 +189,10 @@ class CarMediaService : MediaLibraryService() {
                 return Futures.immediateFuture(MediaSession.MediaItemsWithStartPosition(
                     emptyList(), C.INDEX_UNSET, C.TIME_UNSET))
             }
-            val resolved = mediaItems.mapNotNull { getById(it.mediaId) }
+            val resolved = mediaItems.mapNotNull { item ->
+                if (item.mediaId.startsWith("rs:saf:") && item.localConfiguration?.uri?.scheme == "content") item
+                else getById(item.mediaId)
+            }
             val idx = if (resolved.isEmpty()) C.INDEX_UNSET else startIndex.coerceIn(0,resolved.lastIndex)
             return Futures.immediateFuture(MediaSession.MediaItemsWithStartPosition(
                 resolved, idx, if (idx == C.INDEX_UNSET) C.TIME_UNSET else startPositionMs))
