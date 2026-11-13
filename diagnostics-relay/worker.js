@@ -1,7 +1,7 @@
 /**
  * Cloudflare Worker: receive minimal crash reports and email them via Resend.
  * Secrets/env settings on Worker ONLY:
- * RESEND_API_KEY, REPORT_FROM (verified domain), REPORT_TO (destination mailbox).
+ * RESEND_API_KEY, REPORT_FROM (verified domain). Destination: nepug@gmail.com; optional REPORT_TO override.
  * Configure Cloudflare WAF rate limit and request body limit for public /report endpoint.
  */
 export default {
@@ -9,7 +9,7 @@ export default {
     if (request.method !== 'POST' || new URL(request.url).pathname !== '/report') {
       return new Response('Not found', { status: 404 });
     }
-    if (!env.RESEND_API_KEY || !env.REPORT_FROM || !env.REPORT_TO) {
+    if (!env.RESEND_API_KEY || !env.REPORT_FROM) {
       return new Response('Relay not configured', { status: 503 });
     }
     const raw = await request.text();
@@ -37,7 +37,7 @@ export default {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: env.REPORT_FROM, to: [env.REPORT_TO],
+        from: env.REPORT_FROM, to: [env.REPORT_TO || 'nepug@gmail.com'],
         subject: '[RetroSound One] Ошибка ' + events.length + ' событий',
         text: plain
       })
