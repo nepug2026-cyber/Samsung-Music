@@ -4,16 +4,16 @@
 (()=>{'use strict';
 const canvas=document.getElementById('avatar3D');if(!canvas)return;
 const outfits=[
- {id:'raccoon',name:'Енот — классика',icon:'🦝',body:'#cc7853',trim:'#f8cd91',legs:'#33435e',hat:'#713f37'},
- {id:'forest',name:'Лесной енот',icon:'🌲',body:'#4e9477',trim:'#c3e2ac',legs:'#40576a',hat:'#2d6657'},
- {id:'cosmic',name:'Космический',icon:'🚀',body:'#d1e0e6',trim:'#e7b86e',legs:'#4f779d',hat:'#8abacb'},
- {id:'jazz',name:'Джазовый',icon:'🎷',body:'#693f60',trim:'#ddb07a',legs:'#32344d',hat:'#564052'},
- {id:'disco',name:'Диско',icon:'🪩',body:'#da9d57',trim:'#f2e3b1',legs:'#9a5674',hat:'#ab704c'},
- {id:'pilot',name:'Пилот',icon:'🛩️',body:'#788ba8',trim:'#e9d2a6',legs:'#374760',hat:'#8a684d'},
- {id:'detective',name:'Детектив',icon:'🕵️',body:'#707e88',trim:'#d8b58f',legs:'#454a50',hat:'#3c424f'},
- {id:'studio',name:'Студийный',icon:'🎧',body:'#547e8a',trim:'#a7cdd9',legs:'#384d65',hat:'#e8ae78'},
- {id:'rock',name:'Рок-звезда',icon:'🎸',body:'#8d4251',trim:'#e6a98a',legs:'#303846',hat:'#3f303d'},
- {id:'night',name:'Ночной город',icon:'🌙',body:'#4d5796',trim:'#9db8d8',legs:'#313455',hat:'#47577a'}
+ {id:'raccoon',species:'raccoon',name:'Енот-диджей',icon:'🦝',body:'#bf4037',trim:'#f4ddbd',legs:'#273345',hat:'#c33c32'},
+ {id:'cat',species:'cat',name:'Кот-танцор',icon:'🐈',body:'#45857c',trim:'#efcc9f',legs:'#364054',hat:'#b9805b'},
+ {id:'fox',species:'fox',name:'Лис-музыкант',icon:'🦊',body:'#497b70',trim:'#e8bd96',legs:'#34495d',hat:'#bd7644'},
+ {id:'robot',species:'robot',name:'Робот-битмейкер',icon:'🤖',body:'#5a7e99',trim:'#ace0db',legs:'#3b5068',hat:'#719eaf'},
+ {id:'dog',species:'dog',name:'Пёс в наушниках',icon:'🐕',body:'#ac6e48',trim:'#ebd4ae',legs:'#394b57',hat:'#9d704a'},
+ {id:'fairy',species:'fairy',name:'Сказочный герой',icon:'✨',body:'#896ba5',trim:'#efc9e4',legs:'#645175',hat:'#aa93bd'},
+ {id:'jazz',species:'raccoon',name:'Енот · джаз',icon:'🎷',body:'#6c4562',trim:'#eed6a3',legs:'#343348',hat:'#584458'},
+ {id:'disco',species:'fox',name:'Лис · диско',icon:'🪩',body:'#c49a5c',trim:'#f1dea2',legs:'#845978',hat:'#b88443'},
+ {id:'rock',species:'cat',name:'Кот · рок',icon:'🎸',body:'#8b4552',trim:'#efb596',legs:'#343c4b',hat:'#6d3645'},
+ {id:'cosmic',species:'robot',name:'Космический робот',icon:'🚀',body:'#8dabbc',trim:'#edd7a5',legs:'#59647d',hat:'#a6c4d3'}
 ];window.RetroAvatarModels=outfits;
 const cfg={index:0,dance:'auto',bpm:116,playing:false,level:0,position:0,enabled:true};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), lerp=(a,b,t)=>a+(b-a)*t;
@@ -58,7 +58,7 @@ function cylinder(){const p=[],n=[],ix=[],cols=48;for(const y of [-1,1])for(let 
  for(let j=0;j<cols;j++){let a=j,b=j+cols+1;ix.push(a,a+1,b,b,a+1,b+1);}return makeMesh(p,n,ix);}
 const BALL=sphere(),TUBE=cylinder(),pal={fur:'#9a9ba0',dark:'#42454c',muzzle:'#e9e0d3',shadow:'#454756',white:'#fffdfa',nose:'#292b33',tail:'#73767e'};
 const rgb={};function color(h){if(!rgb[h])rgb[h]=[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);return rgb[h];}
-let aspect=240/260,P=persp(.76,aspect,.1,40),V=tr(0,-.42,-4.75);
+let aspect=canvas.width/canvas.height,P=persp(.76,aspect,.1,40),V=tr(0,-.42,-4.75);
 function part(mesh,col,parent,x,y,z,sx,sy,sz,gloss=.22,alpha=1){let model=mul(node(parent,x,y,z),sc(sx,sy,sz));gl.uniformMatrix4fv(uMVP,false,new Float32Array(mul(P,mul(V,model))));gl.uniformMatrix4fv(uModel,false,new Float32Array(model));gl.uniform3fv(uColor,new Float32Array(color(col)));
  gl.uniform1f(uGloss,gloss);gl.uniform1f(uAlpha,alpha);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.pos);gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,0,0);gl.enableVertexAttribArray(aPos);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.nor);gl.vertexAttribPointer(aNor,3,gl.FLOAT,false,0,0);gl.enableVertexAttribArray(aNor);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.idx);gl.drawElements(gl.TRIANGLES,mesh.count,gl.UNSIGNED_SHORT,0);}
 const ball=(c,m,x,y,z,sx,sy,sz,g)=>part(BALL,c,m,x,y,z,sx,sy,sz,g),tube=(c,m,x,y,z,sx,sy,sz,g)=>part(TUBE,c,m,x,y,z,sx,sy,sz,g);
@@ -68,8 +68,9 @@ function draw(t){let dt=lastT?clamp(t-lastT,0,.06):.016;lastT=t;let bpm=clamp(Nu
  if(on){phase+=dt*bpm/60*2*Math.PI;let target=(Number(cfg.position)||0)*bpm/60*2*Math.PI;let d=Math.atan2(Math.sin(target-phase),Math.cos(target-phase));phase+=d*clamp(dt*1.4,0,.085);}
  else phase+=dt*.5;
  let beat=Math.sin(phase),beat2=Math.sin(phase*2),sway=Math.sin(phase*.5),idle=Math.sin(t*1.6);
- const intensity=on?clamp(.36+energy*.45,.25,.75):0;
- let style=cfg.dance||'disco',timing=style==='waltz'?.55:style==='shuffle'?1.24:style==='rock'?1.12:1;
+ const intensity=on?clamp(.40+energy*.45,.25,.80):0;
+ let o=outfits[clamp(cfg.index|0,0,outfits.length-1)];
+ let style=(cfg.dance==='auto'?({raccoon:'hiphop',cat:'disco',fox:'swing',robot:'popping',dog:'rock',fairy:'waltz'}[o.species]):cfg.dance)||'disco',timing=style==='waltz'?.55:style==='shuffle'?1.24:style==='rock'?1.12:1;
  let step=Math.sin(phase*timing),armA=.18*step*intensity,armB=-.2*Math.sin(phase*timing+.6)*intensity;
  let legsA=.14*Math.sin(phase*timing+.3)*intensity,legsB=-.14*Math.sin(phase*timing+.3)*intensity;
  if(style==='ballet'){armA=.26*intensity;armB=-.26*intensity;legsA*=.5;legsB*=.5;}
@@ -79,19 +80,35 @@ function draw(t){let dt=lastT?clamp(t-lastT,0,.06):.016;lastT=t;let bpm=clamp(Nu
  let bob=on?.028*(1+beat2)*intensity:idle*.011;
  let root=node(id(),0,bob,-.04,0,.07*sway*intensity,.025*step*intensity);
  // Coat/body silhouette: rounded forms only, no large hard-edged box.
- let o=outfits[clamp(cfg.index|0,0,outfits.length-1)];
  // Tail behind the body, with shaded rings and mild sway.
- let tailbase=node(root,.23,.54,-.23,0,0,.18*sway*intensity);
- for(let i=0;i<5;i++){let cx=.13+i*.115,cy=-.06+i*.046,cz=-.06-i*.045;ball(i%2?pal.fur:pal.dark,tailbase,cx,cy,cz,.16-i*.009,.12-i*.008,.14-i*.008,.12);}
+ const species=o.species;
+ const fur=species==='fox'?'#b9774b':species==='cat'?'#c69977':species==='dog'?'#b88e73':species==='fairy'?'#c7accc':species==='robot'?'#90a2af':pal.fur;
+ const dark=species==='robot'?'#41596b':species==='fox'?'#754731':pal.dark;
+ if(species==='fairy'){
+   for(const s of [-1,1]){const wing=node(root,s*.24,1.0,-.18,0,0,-s*.22);
+     ball('#ded4ea',wing,s*.14,.10,-.07,.18,.32,.035,.32);
+   }
+ }else if(species!=='robot'){
+   const tailbase=node(root,.23,.54,-.23,0,0,.15*sway*intensity);
+   for(let i=0;i<6;i++){let cx=.12+i*.10,cy=-.06+i*.047,cz=-.06-i*.047;
+     const tc=species==='raccoon'?(i%2?fur:dark):species==='fox'?(i===5?'#f0e7d7':fur):fur;
+     ball(tc,tailbase,cx,cy,cz,.14,.12,.13,.15);
+   }
+ }
  // Legs, knees, shoes: independent joint chains.
  for(const s of [-1,1]){let h=node(root,s*.17,.39,0,-.02,0,(s<0?legsA:legsB));
    tube(o.legs,h,0,-.15,0,.118,.19,.125);ball(o.legs,h,0,-.30,0,.13,.13,.13);
    let knee=node(h,0,-.31,0,0,0,-.08*step*intensity*s);
    tube(o.legs,knee,0,-.14,0,.112,.17,.116);
-   ball('#313943',knee,0,-.34,.105,.14,.10,.22,.22);
-   ball('#c4b4a0',knee,0,-.38,.22,.125,.044,.115,.22);
+   ball(species==='raccoon'?'#c74a38':'#384d5e',knee,0,-.34,.105,.14,.10,.22,.22);
+   ball('#f5e2ca',knee,0,-.38,.22,.125,.044,.115,.22);
  }
  ball(o.body,root,0,.80,0,.31,.45,.24,.20);
+ for(const s of [-1,1]){
+   ball(o.trim,root,s*.19,1.07,.18,.075,.11,.045,.20);
+   ball('#e9d3b2',root,s*.23,.73,.226,.040,.018,.015,.24);
+ }
+ ball('#f4efe5',root,0,.82,.237,.106,.22,.026,.23);
  ball(o.trim,root,0,.82,.228,.185,.28,.04,.25);
  // Collar and scarf/zipper details.
  ball(o.trim,root,0,1.16,.14,.23,.075,.19,.32);
@@ -105,48 +122,66 @@ function draw(t){let dt=lastT?clamp(t-lastT,0,.06):.016;lastT=t;let bpm=clamp(Nu
   let elbow=node(shoulder,s*.025,-.45,0,0,0,-s*(.12+.10*intensity)+angle*.48);
   ball(o.body,elbow,0,0,0,.12,.12,.12);
   ball(o.body,elbow,0,-.18,.016,.1,.18,.106);
-  ball(pal.dark,elbow,0,-.36,.02,.13,.12,.12);
-  for(let j=-1;j<=1;j++)ball(pal.fur,elbow,j*.075,-.42,.1,.036,.065,.043);
+  ball(dark,elbow,0,-.36,.02,.13,.12,.12);
+  for(let j=-1;j<=1;j++)ball(fur,elbow,j*.075,-.42,.1,.036,.065,.043);
  }
- ball(pal.fur,root,0,1.27,0,.12,.12,.12);
- let head=node(root,0,1.63,0,-.025+Math.sin(t*1.3)*.015,.08*sway*intensity,.04*step*intensity);
- ball(pal.fur,head,0,0,0,.375,.335,.345,.28);
- // Ear shapes: inner curved cups.  All positions are relative to head joint.
- for(const s of [-1,1]){let ear=node(head,s*.27,.245,-.045,0,0,-s*.25);
-   ball(pal.dark,ear,0,.03,0,.142,.17,.09,.1);
-   ball('#cda8a8',ear,0,.025,.075,.076,.095,.032,.2);
- }
- // Distinct raccoon mask with light inset eyes and tiny corneal highlights.
- for(const s of [-1,1]){
-   let ey=node(head,s*.15,.055,.285,0,s*.15,0);
-   ball(pal.dark,ey,0,0,-.012,.16,.115,.07,.16);
-   ball('#eee4d7',ey,0,.004,.055,.07,.071,.032,.23);
-   ball(pal.nose,ey,0,.001,.084,.034,.049,.021,.35);
-   ball(pal.white,ey,-.014,.018,.106,.012,.014,.009,.65);
-   ball(pal.fur,head,s*.21,-.11,.24,.06,.07,.08,.15);
- }
- ball(pal.muzzle,head,0,-.142,.30,.175,.103,.085,.17);
- ball(pal.nose,head,0,-.112,.383,.076,.045,.053,.48);
- ball('#674f50',head,0,-.218,.369,.055,.012,.015,.2);
- // Clothing variations, original designs; always the same friendly raccoon geometry.
- if(o.id==='jazz'||o.id==='detective'||o.id==='pilot'){
-   ball(o.hat,head,0,.302,0,.31,.045,.29,.24);
-   ball(o.hat,head,0,.38,-.02,.22,.12,.225,.22);
- }else if(o.id==='cosmic'||o.id==='studio'){
-   for(const s of [-1,1])ball(o.hat,head,s*.34,.005,.015,.055,.155,.145,.5);
-   ball(o.hat,head,0,.29,-.05,.32,.04,.3,.48);
- }else if(o.id==='disco'){
-   ball(o.hat,head,0,.275,-.08,.32,.15,.24,.2);
- }else if(o.id==='rock'){
-   ball(o.hat,head,0,.33,-.08,.20,.19,.23,.15);
- }else if(o.id==='night'){
-   ball(o.hat,head,0,.285,-.05,.29,.10,.27,.3);
+ ball(fur,root,0,1.27,0,.12,.12,.12);
+ const head=node(root,0,1.63,0,-.025+Math.sin(t*1.3)*.015,.06*sway*intensity,.035*step*intensity);
+ ball(fur,head,0,0,0,.375,.335,.345,.25);
+ if(species==='robot'){
+   ball('#334958',head,0,.012,.30,.295,.17,.078,.7);
+   for(const s of [-1,1]){
+     ball('#c8eff5',head,s*.15,.04,.372,.095,.076,.017,.85);
+     ball('#5bb8cd',head,s*.15,.04,.392,.040,.04,.016,.8);
+   }
+   tube('#a7c8d1',head,0,.36,0,.018,.12,.018,.45);
+   ball('#e7b866',head,0,.47,0,.072,.072,.072,.6);
  }else{
-   ball(o.hat,head,0,.27,-.07,.26,.055,.24,.25);
+   for(const s of [-1,1]){
+     const ear=node(head,s*.27,.245,-.045,0,0,-s*(species==='dog'?.55:.21));
+     ball(dark,ear,0,species==='dog'?-.04:.04,0,.140,
+       species==='fox'?.24:species==='cat'?.21:.166,.09,.20);
+     ball('#cfa4a4',ear,0,.027,.075,.075,.09,.032,.23);
+   }
+   for(const s of [-1,1]){
+     const ey=node(head,s*.15,.052,.287,0,s*.12,0);
+     if(species==='raccoon'){
+       // Dark sunglasses from the approved raccoon-DJ illustration.
+       ball('#272c36',ey,0,0,.035,.159,.103,.056,.87);
+       ball('#65717a',ey,-.045,.037,.088,.054,.014,.01,.80);
+     }else{
+       ball(dark,ey,0,0,-.005,.14,.11,.055,.18);
+       ball('#fff8ec',ey,0,.003,.062,.070,.072,.035,.3);
+       ball('#303d4d',ey,0,0,.096,.036,.045,.025,.55);
+       ball('#fff',ey,-.015,.022,.11,.015,.015,.012,.7);
+     }
+   }
+   ball('#eee0d1',head,0,-.145,.30,species==='fox'?.19:.17,.103,
+     species==='fox'?.14:.088,.18);
+   ball(species==='cat'?'#a56f7b':'#2a2d37',head,0,-.116,
+     species==='fox'?.420:.383,.071,.041,.045,.45);
+   ball('#65464a',head,0,-.22,.358,.06,.011,.013,.18);
  }
+ // Full 3D over-ear headphones with curved raised padded bridge.
+ if(['raccoon','cat','dog'].includes(species)){
+   for(let i=0;i<=12;i++){
+     const angle=(.06+.88*i/12)*Math.PI;
+     ball('#30343c',head,.395*Math.cos(angle),.035+.393*Math.sin(angle),
+        -.035,.048,.054,.057,.52);
+   }
+   for(const s of [-1,1]){
+     ball('#33343b',head,s*.405,.013,0,.09,.173,.15,.37);
+     ball('#d4ac80',head,s*.45,.01,.015,.041,.115,.104,.64);
+   }
+ }
+ if(species==='fairy'){
+   ball(o.hat,head,0,.31,-.06,.26,.08,.25,.3);
+   ball('#f5e2f2',head,0,.39,-.05,.12,.11,.12,.25);
+ }
+ if(o.id==='jazz'||o.id==='rock')ball(o.hat,head,0,.34,-.06,.20,.11,.24,.24);
 }
 function frame(ms){requestAnimationFrame(frame);if(!cfg.enabled||document.hidden||gl.isContextLost())return;let t=ms/1000;
- const targetFps=cfg.playing?45:24;if(ms-lastPaint<1000/targetFps)return;lastPaint=ms;
+ const targetFps=cfg.playing?60:24;if(ms-lastPaint<1000/targetFps)return;lastPaint=ms;
  gl.viewport(0,0,canvas.width,canvas.height);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);draw(t);
 }
 canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();window.RetroAvatar3D.ready=false;});
