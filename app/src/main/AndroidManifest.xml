@@ -15,22 +15,22 @@
         <package android:name="com.spotify.music" />
         <package android:name="com.aspiro.tidal" />
     </queries>
-    <application android:label="RetroSound One" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:theme="@style/Theme.RetroSound"
+    <application android:label="RetroSound One RC1" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:theme="@style/Theme.RetroSound"
        android:usesCleartextTraffic="false" android:allowBackup="true" android:supportsRtl="true">
        <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
-       <service android:name=".CarMediaService" android:exported="true"
+       <service android:name="com.retrosound.one.CarMediaService" android:exported="true"
             android:foregroundServiceType="mediaPlayback">
            <intent-filter>
                <action android:name="androidx.media3.session.MediaLibraryService" />
                <action android:name="android.media.browse.MediaBrowserService" />
            </intent-filter>
        </service>
-       <service android:name=".SourceNotificationListener" android:exported="false"
+       <service android:name="com.retrosound.one.SourceNotificationListener" android:exported="false"
           android:label="RetroSound — активные медиасессии"
           android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
        </service>
-       <activity android:name=".MainActivity" android:exported="true">
+       <activity android:name="com.retrosound.one.MainActivity" android:exported="true">
            <intent-filter>
                <action android:name="android.intent.action.MAIN" />
                <category android:name="android.intent.category.LAUNCHER" />
