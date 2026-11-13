@@ -9,8 +9,8 @@ android {
         applicationId = "com.retrosound.one"
         minSdk = 29
         targetSdk = 35
-        versionCode = 15
-        versionName = "1.4.0-test2-diagnostics"
+        versionCode = 16
+        versionName = "1.4.0-test3-characters"
         // The report URL is public, but the email service key and mailbox stay SERVER-SIDE.
         val reportUrl = (System.getenv("RETROSOUND_DIAGNOSTICS_ENDPOINT") ?: "").trim()
         require(reportUrl.isEmpty() || reportUrl.matches(Regex("https://[A-Za-z0-9._:/?&=%-]+"))) {
