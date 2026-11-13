@@ -32,6 +32,8 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebResourceError
+import android.webkit.ConsoleMessage
 import org.json.JSONObject
 
 /**
@@ -43,6 +45,7 @@ class MainActivity : Activity() {
     private var fileCallback: ValueCallback<Array<android.net.Uri>>? = null
     private val filePickerRequest = 108
     private val folderPickerRequest = 109
+    private val diagnosticExportRequest = 110
     private val folderPrefs by lazy { getSharedPreferences("local_folder", MODE_PRIVATE) }
     private val folderUris = java.util.concurrent.ConcurrentHashMap<String, Uri>()
     private var nativeController: MediaController? = null
@@ -74,6 +77,7 @@ class MainActivity : Activity() {
                 controller.addListener(nativeListener)
                 sendNativeState()
             } catch (e: Exception) {
+                TestDiagnostics.error("media_controller", e.javaClass.simpleName)
                 browser.evaluateJavascript(
                     "window.retroNativeFolderError?.(" + JSONObject.quote(
                         "Не удалось открыть медиасервис: " + (e.message ?: "ошибка")
@@ -82,8 +86,14 @@ class MainActivity : Activity() {
         }, java.util.concurrent.Executor { runnable -> runOnUiThread(runnable) })
     }
     private fun playSelectedFile(key: String, title: String) {
-        val contentUri = folderUris[key] ?: return
-        val controller = nativeController ?: return
+        val contentUri = folderUris[key] ?: run {
+            TestDiagnostics.error("local_music", "missing_file_key")
+            return
+        }
+        val controller = nativeController ?: run {
+            TestDiagnostics.error("local_music", "controller_not_connected")
+            return
+        }
         val item = MediaItem.Builder()
             .setMediaId("rs:saf:$key")
             .setUri(contentUri)
@@ -107,6 +117,12 @@ class MainActivity : Activity() {
             settings.allowUniversalAccessFromFileURLs = false
             settings.mediaPlaybackRequiresUserGesture = true
             webViewClient = object : WebViewClient() {
+                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                    if (request?.isForMainFrame == true) {
+                        TestDiagnostics.error("webview", "main_document_error", "code=" + (error?.errorCode ?: -1))
+                    }
+                    super.onReceivedError(view, request, error)
+                }
                 override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                     val u = request?.url ?: return null
                     if (u.scheme == "https" && u.host == "retrosound.local" && u.path?.startsWith("/audio/") == true) {
@@ -128,6 +144,12 @@ class MainActivity : Activity() {
                 }
             }
             webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(message: ConsoleMessage?): Boolean {
+                    if (message?.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                        TestDiagnostics.error("webview", "javascript_console", "line=" + message.lineNumber())
+                    }
+                    return super.onConsoleMessage(message)
+                }
                 override fun onShowFileChooser(
                     webView: WebView, callback: ValueCallback<Array<android.net.Uri>>,
                     params: FileChooserParams
@@ -168,6 +190,21 @@ class MainActivity : Activity() {
     @Deprecated("Compatibility callback for Android 10+")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == diagnosticExportRequest) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    val destination = data.data!!
+                    val stream = contentResolver.openOutputStream(destination, "w")
+                        ?: throw java.io.IOException("Cannot write report")
+                    stream.use { it.write(TestDiagnostics.read().toByteArray(Charsets.UTF_8)) }
+                    browser.evaluateJavascript("window.retroDiagnosticsSaved?.(true)", null)
+                } catch (e: Exception) {
+                    TestDiagnostics.error("diagnostic_export", e.javaClass.simpleName)
+                    browser.evaluateJavascript("window.retroDiagnosticsSaved?.(false)", null)
+                }
+            }
+            return
+        }
         if (requestCode == folderPickerRequest) {
             if (resultCode == RESULT_OK && data?.data != null) {
                 val uri = data.data!!
@@ -175,7 +212,10 @@ class MainActivity : Activity() {
                     contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     folderPrefs.edit().putString("uri", uri.toString()).apply()
                     scanFolder(uri)
-                } catch (_: Exception) { browser.evaluateJavascript("window.retroNativeFolderError?.(\'Не удалось открыть папку\')", null) }
+                } catch (e: Exception) {
+                    TestDiagnostics.error("folder_picker", e.javaClass.simpleName)
+                    browser.evaluateJavascript("window.retroNativeFolderError?.(\'Не удалось открыть папку\')", null)
+                }
             }
             return
         }
@@ -233,6 +273,7 @@ class MainActivity : Activity() {
                 folderPrefs.edit().putString("tracks", json).apply()
                 runOnUiThread { browser.evaluateJavascript("window.retroNativeTracks?.($json)", null) }
             } catch (e: Exception) {
+                TestDiagnostics.error("folder_scan", e.javaClass.simpleName)
                 val message = JSONObject.quote(e.message ?: "Ошибка чтения папки")
                 runOnUiThread { browser.evaluateJavascript("window.retroNativeFolderError?.($message)", null) }
             }
@@ -240,6 +281,27 @@ class MainActivity : Activity() {
     }
 
     private inner class Bridge {
+        @JavascriptInterface fun diagnosticError(category: String, code: String) {
+            TestDiagnostics.error("web_" + category, code)
+        }
+        @JavascriptInterface fun getDiagnostics(): String = TestDiagnostics.read()
+        @JavascriptInterface fun diagnosticsStatus(): String =
+            if (TestDiagnostics.uploadConfigured()) "Автоотправка через интернет настроена"
+            else "Логи сохраняются локально. Адрес сервера ещё не настроен."
+        @JavascriptInterface fun clearDiagnostics() { TestDiagnostics.clear() }
+        @JavascriptInterface fun exportDiagnostics() {
+            runOnUiThread {
+                try {
+                    startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TITLE, "RetroSoundOne-errors.txt")
+                    }, diagnosticExportRequest)
+                } catch (e: Exception) {
+                    TestDiagnostics.error("diagnostic_export", e.javaClass.simpleName)
+                }
+            }
+        }
         @JavascriptInterface fun pickMusicFolder() {
             runOnUiThread {
                 try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {

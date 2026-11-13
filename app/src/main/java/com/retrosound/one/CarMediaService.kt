@@ -9,6 +9,8 @@ import android.net.Uri
 import org.json.JSONArray
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -202,6 +204,11 @@ class CarMediaService : MediaLibraryService() {
     override fun onCreate() {
         super.onCreate()
         player = ExoPlayer.Builder(this).build()
+        player!!.addListener(object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                TestDiagnostics.error("media3", "playback_error", "code=" + error.errorCode)
+            }
+        })
         carSession = MediaLibrarySession.Builder(this, player!!, callback).build()
     }
 

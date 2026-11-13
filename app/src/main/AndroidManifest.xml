@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <queries>
         <package android:name="ru.yandex.music" />
         <package android:name="ru.mts.music.android" />
@@ -15,7 +17,7 @@
         <package android:name="com.spotify.music" />
         <package android:name="com.aspiro.tidal" />
     </queries>
-    <application android:label="RetroSound One 1.4 Test" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:theme="@style/Theme.RetroSound"
+    <application android:name=".RetroSoundApp" android:label="RetroSound One 1.4 Diagnostics" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:theme="@style/Theme.RetroSound"
        android:usesCleartextTraffic="false" android:allowBackup="true" android:supportsRtl="true">
        <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
        <service android:name="com.retrosound.one.CarMediaService" android:exported="true"
