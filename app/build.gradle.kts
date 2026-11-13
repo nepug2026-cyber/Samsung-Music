@@ -12,6 +12,12 @@ android {
         versionCode = 10
         versionName = "1.0.0-rc1"
     }
+    buildTypes {
+        getByName("debug") {
+            // Install the RC safely next to an existing 0.9 beta signed by a different key.
+            applicationIdSuffix = ".rc1"
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
