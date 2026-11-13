@@ -8,6 +8,8 @@ const danceNames={disco:'Диско',shuffle:'Шаффл',hiphop:'Hip-hop',swing
 const menu=[['appearance','Оформление'],['character','3D-персонажи'],['sources','Источники'],['local','Локальная музыка'],['quality','Качество'],['fallback','Автопереключение'],['auto','Android Auto']];
 const defaultState={skin:'cassette',source:'local',order:ids.slice(),hidden:['tidal'],theme:'dark',glass:true,opacity:100,avatar:true,avatarIndex:0,avatarSize:90,dance:'auto',haptic:2,quality:'auto',failover:false,errorOnly:true,selectedIndex:0};
 let state={...defaultState},localTracks=[],currentLocalIndex=-1,dragging=null,trackIndex=0,screen='player',settingsTab='appearance';
+let nativePlaying=false,nativePosition=0,nativeDuration=0;
+const nativeTrack=()=>state.source==='local'&&currentLocalIndex>=0&&String(localTracks[currentLocalIndex]?.src||'').startsWith('native:');
 try{const saved=JSON.parse(localStorage.getItem('retrosound-v05')||'null');if(saved){state={...defaultState,...saved};state.order=ids.filter(x=>state.order.includes(x)).concat(ids.filter(x=>!state.order.includes(x)));state.hidden=state.hidden.filter(x=>ids.includes(x));}}catch{}
 const audio=$('audio');audio.crossOrigin=null;let playContext=null,analyser=null,freqs=null,wasSliding=false,longPress=null,ignoreClick=false,fallbackUrl='';
 const demoTracks=(window.RETRO_TRACKS||[]).map(t=>({...t,cover:`assets/covers/${t.id}.webp`,src:`assets/music/${t.id}.mp3`,demo:true}));
@@ -24,7 +26,7 @@ function notify(message){$('statusLine').textContent=message}
 function vibration(){try{window.AndroidBridge?.haptic(Number(state.haptic)||0)}catch(e){};try{const n=[0,6,14,27][Number(state.haptic)||0];if(n&&navigator.vibrate)navigator.vibrate(n)}catch{}}
 function theme(){let val=state.theme;if(val==='system')val=window.matchMedia?.('(prefers-color-scheme:light)').matches?'light':'dark';document.body.dataset.theme=val;document.body.classList.toggle('glass-on',state.glass);$('themeQuick').textContent=val==='light'?'☼':'☾';$('themeSelect').value=state.theme;$('glassToggle').checked=state.glass;}
 function toggleTheme(){state.theme=document.body.dataset.theme==='light'?'dark':'light';save();theme()}
-function setScreen(which){screen=which;for(const id of ['player','settings','library'])$(id+'Screen').classList.toggle('shown',which===id);if(which==='settings')renderSettings();if(which==='library')renderLibrary();window.scrollTo(0,0)}
+function setScreen(which){screen=which;for(const id of ['player','settings','library','queue'])$(id+'Screen').classList.toggle('shown',which===id);if(which==='settings')renderSettings();if(which==='library')renderLibrary();if(which==='queue')renderQueue();window.scrollTo(0,0)}
 function gotoSettings(tab){settingsTab=tab||'appearance';setScreen('settings')}
 let previewSource=state.source;
 function renderSourceCarousel(){const v=visible();if(!v.includes(previewSource))previewSource=v[0]||'local';const i=v.indexOf(previewSource);const box=$('sourceCarousel');box.replaceChildren();for(const [d,cl] of [[-1,'prev'],[0,'current'],[1,'next']]){if(v.length===1&&d!==0)continue;const src=v[(i+d+v.length)%v.length];const button=document.createElement('button');button.className='source-card '+cl;button.type='button';button.textContent=sourceNames[src]+(d===0&&src!==state.source?' · Нажмите для подключения':'');button.setAttribute('aria-current',d===0?'true':'false');button.onclick=()=>d===0?confirmSource(src):previewOnly(src);box.append(button)}}
@@ -47,7 +49,7 @@ else html=`<div class="device mp3-device"><div class="mp3-screen">${art(s)}${met
 $('carrier').innerHTML=html;
 $('deviceSketch').style.backgroundImage=`url('${imgAsset('assets/skins/'+skin+'.webp')}')`;
 $('deck').style.setProperty('--device-o',state.opacity/100);
-const on=!audio.paused&&state.source==='local';$('deck').classList.toggle('playing',on);
+const on=state.source==='local'&&(nativeTrack()?nativePlaying:!audio.paused);$('deck').classList.toggle('playing',on);
 $('dancePill').textContent=(danceNames[currentDance()]||currentDance()).toUpperCase();
 const ca=$('characterArea');ca.classList.toggle('off',!state.avatar);
 ca.style.width=`${Math.round(140*state.avatarSize/90)}px`;ca.style.height=`${Math.round(168*state.avatarSize/90)}px`;
@@ -55,20 +57,46 @@ window.RetroAvatar3D?.set({index:state.avatarIndex,dance:currentDance(),bpm:curr
 updateCarrierSpeeds(); updateAutoPreview();}
 function updateCarrierSpeeds(){const d=Number.isFinite(audio.duration)?audio.duration:currentSong().seconds||150;const f=d>0?Math.min(1,audio.currentTime/d):.2;const supply=(1.5+f*1.45).toFixed(2)+'s',takeup=(2.75-f*1.1).toFixed(2)+'s';$('deck').style.setProperty('--supply-speed',supply);$('deck').style.setProperty('--takeup-speed',takeup);$('deck').style.setProperty('--cd-speed',(1.65+1.15*f).toFixed(2)+'s');const reel=$('carrier').querySelector('.cassette');if(reel){const a=reel.querySelector('.reel.left'),b=reel.querySelector('.reel.right');if(a)a.style.animationDuration=supply;if(b)b.style.animationDuration=takeup}}
 function timefmt(n){if(!Number.isFinite(n))return'0:00';const v=Math.max(0,Math.floor(n));return `${Math.floor(v/60)}:${String(v%60).padStart(2,'0')}`}
-function renderPlayback(){const on=!audio.paused&&state.source==='local';$('play').textContent=on?'Ⅱ':'▶';$('play').setAttribute('aria-label',on?'Пауза':'Воспроизвести');$('deck').classList.toggle('playing',on);$('playStatus').classList.toggle('playing',on);$('playStatus').textContent=on?'● PLAYING':state.source==='local'?'● PAUSED':'● НЕ ПОДКЛЮЧЕН';$('currentTime').textContent=timefmt(audio.currentTime);const len=Number.isFinite(audio.duration)&&audio.duration>0?audio.duration:(currentSong().seconds||0);$('totalTime').textContent=timefmt(len);if(!wasSliding){const pct=len>0?(audio.currentTime/len)*100:0;$('seek').value=Math.round(Math.max(0,Math.min(1000,pct*10)));$('seek').style.setProperty('--pct',pct+'%')}
+function renderPlayback(){const on=state.source==='local'&&(nativeTrack()?nativePlaying:!audio.paused);$('play').textContent=on?'Ⅱ':'▶';$('play').setAttribute('aria-label',on?'Пауза':'Воспроизвести');$('deck').classList.toggle('playing',on);$('playStatus').classList.toggle('playing',on);$('playStatus').textContent=on?'● PLAYING':state.source==='local'?'● PAUSED':'● НЕ ПОДКЛЮЧЕН';$('currentTime').textContent=timefmt(nativeTrack()?nativePosition/1000:audio.currentTime);const len=nativeTrack()?nativeDuration/1000:(Number.isFinite(audio.duration)&&audio.duration>0?audio.duration:(currentSong().seconds||0));$('totalTime').textContent=timefmt(len);if(!wasSliding){const pct=len>0?((nativeTrack()?nativePosition/1000:audio.currentTime)/len)*100:0;$('seek').value=Math.round(Math.max(0,Math.min(1000,pct*10)));$('seek').style.setProperty('--pct',pct+'%')}
 window.RetroAvatar3D?.set({playing:on,position:audio.currentTime||0,bpm:currentBpm(),dance:currentDance()});}
 function setSong(i,isLocal=false,autoPlay=true){if(state.source!=='local')state.source='local';previewSource='local';audio.pause();if(isLocal)currentLocalIndex=i;else{trackIndex=(i+demoTracks.length)%demoTracks.length;currentLocalIndex=-1;state.selectedIndex=trackIndex;save()}
-const s=currentSong();audio.src=s.file?URL.createObjectURL(s.file):audioAsset(s.src);audio.load();renderSourceCarousel();renderCarrier();renderPlayback();notify(`Выбран трек: ${s.title}`);if(autoPlay)playMusic();}
+const s=currentSong();
+if(nativeTrack()){audio.pause();audio.removeAttribute('src');audio.load();nativePlaying=false;}
+else {window.AndroidBridge?.pauseNative?.();audio.src=s.file?URL.createObjectURL(s.file):audioAsset(s.src);audio.load();}renderSourceCarousel();renderCarrier();renderPlayback();notify(`Выбран трек: ${s.title}`);if(autoPlay)playMusic();}
 async function createAnalyzer(){try{if(playContext)return;const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;playContext=new AC();const src=playContext.createMediaElementSource(audio);analyser=playContext.createAnalyser();analyser.fftSize=256;freqs=new Uint8Array(analyser.frequencyBinCount);src.connect(analyser);analyser.connect(playContext.destination)}catch(e){notify('Аудиоанализ недоступен: '+e.message)}}
-async function playMusic(){if(state.source!=='local'){notify('Сначала выберите «Музыка телефона»: внешние сервисы в этом HTML-демо не воспроизводятся.');return}if(!audio.src){if(localTracks.length)setSong(0,true,false);else setSong(trackIndex,false,false)}try{await createAnalyzer();await playContext?.resume();await audio.play();notify(`Играет: ${currentSong().title}`)}catch(e){notify('Не удалось включить трек: '+e.message);if(state.failover)tryFailover('ошибка воспроизведения')}renderPlayback()}
-function playPause(){if(state.source!=='local'){window.AndroidBridge?.mediaCommand('toggle',state.source);notify('Отправляю команду: '+sourceNames[state.source]);return}if(!audio.src){if(localTracks.length)setSong(0,true,true);else setSong(trackIndex,false,true);return}if(audio.paused)playMusic();else{audio.pause();renderPlayback()}}
+async function playMusic(){if(nativeTrack()){
+ const key=localTracks[currentLocalIndex].src.slice(7);
+ window.AndroidBridge?.playNativeKey?.(key);
+ notify('Запускаю через Android Media3: '+currentSong().title);
+ return;
+}
+if(state.source!=='local'){notify('Сначала выберите «Музыка телефона»: внешние сервисы в этом HTML-демо не воспроизводятся.');return}if(!audio.src){if(localTracks.length)setSong(0,true,false);else setSong(trackIndex,false,false)}try{await createAnalyzer();await playContext?.resume();await audio.play();notify(`Играет: ${currentSong().title}`)}catch(e){notify('Не удалось включить трек: '+e.message);if(state.failover)tryFailover('ошибка воспроизведения')}renderPlayback()}
+function playPause(){if(nativeTrack()){
+ if(nativePlaying)window.AndroidBridge?.pauseNative?.();else playMusic();
+ return;
+}
+if(state.source!=='local'){window.AndroidBridge?.mediaCommand('toggle',state.source);notify('Отправляю команду: '+sourceNames[state.source]);return}if(!audio.src){if(localTracks.length)setSong(0,true,true);else setSong(trackIndex,false,true);return}if(audio.paused)playMusic();else{audio.pause();renderPlayback()}}
 function skipSong(dir){if(state.source!=='local'){window.AndroidBridge?.mediaCommand(dir>0?'next':'previous',state.source);return}if(currentLocalIndex>=0){if(localTracks.length>1)setSong((currentLocalIndex+dir+localTracks.length)%localTracks.length,true,true)}else setSong((trackIndex+dir+demoTracks.length)%demoTracks.length,false,true);vibration()}
-function stepSeek(sec){if(state.source!=='local'||!Number.isFinite(audio.duration))return;audio.currentTime=Math.max(0,Math.min(audio.duration,audio.currentTime+sec));updateCarrierSpeeds();renderPlayback()}
+function stepSeek(sec){if(nativeTrack()){window.AndroidBridge?.seekNativeRelative?.(sec);return}
+if(state.source!=='local'||!Number.isFinite(audio.duration))return;audio.currentTime=Math.max(0,Math.min(audio.duration,audio.currentTime+sec));updateCarrierSpeeds();renderPlayback()}
 function holdSkip(id,dir){const b=$(id);let timer=null,interval=null,long=false;
  const stop=()=>{clearTimeout(timer);clearInterval(interval);if(long){ignoreClick=true;setTimeout(()=>ignoreClick=false,130)}};
  b.addEventListener('pointerdown',e=>{if(e.button!==0)return;long=false;timer=setTimeout(()=>{long=true;vibration();stepSeek(dir*6);interval=setInterval(()=>stepSeek(dir*3),220)},520)});
  for(const k of ['pointerup','pointercancel','pointerleave'])b.addEventListener(k,stop);
  b.addEventListener('click',()=>{if(ignoreClick){ignoreClick=false;return}skipSong(dir)})}
+function renderQueue(){
+ const box=$('queueList');if(!box)return;
+ box.replaceChildren();
+ const useLocal=state.source==='local'&&localTracks.length>0;
+ const rows=useLocal?localTracks:demoTracks;
+ rows.forEach((song,i)=>{
+  const b=document.createElement('button');
+  b.className='track-card'+(i===(useLocal?currentLocalIndex:trackIndex)?' active':'');
+  b.innerHTML='<span><strong>'+safe(song.title)+'</strong><small>'+safe(song.artist||song.album||'RetroSound')+'</small></span><span>▶</span>';
+  b.onclick=()=>{setSong(i,useLocal,true);setScreen('player')};
+  box.append(b);
+ });
+}
 function renderLibrary(){const box=$('trackList');box.replaceChildren();demoTracks.forEach((s,i)=>{const b=document.createElement('button');b.className='track-card'+(currentLocalIndex<0&&state.source==='local'&&trackIndex===i?' active':'');b.innerHTML=`${art(s)}<span><strong>${safe(s.title)}</strong><small>${safe(s.album)} · ${safe(s.style)} · ${s.bpm} BPM · ${timefmt(s.seconds)}</small></span><span>▶</span>`;b.onclick=()=>{setSong(i,false,true);setScreen('player')};box.append(b)});renderLocalLists()}
 function renderLocalLists(){for(const box of [$('localList'),$('localSettingsList')]){box.replaceChildren();if(!localTracks.length){const p=document.createElement('p');p.className='muted tiny';p.textContent='Папка или файлы пока не выбраны';box.append(p)}localTracks.forEach((s,i)=>{const b=document.createElement('button');b.className='track-card'+(currentLocalIndex===i?' active':'');b.innerHTML=`${art(s)}<span><strong>${safe(s.title)}</strong><small>${safe(s.artist)} · ${safe(s.album)}</small></span><span>▶</span>`;b.onclick=()=>{setSong(i,true,true);setScreen('player')};box.append(b)})}}
 function renderSettings(){const nav=$('settingsNav');nav.replaceChildren();menu.forEach(([id,title])=>{const b=document.createElement('button');b.textContent=title;b.className=id===settingsTab?'on':'';b.onclick=()=>{settingsTab=id;renderSettings()};nav.append(b)});document.querySelectorAll('.settings-page').forEach(e=>e.classList.toggle('shown',e.dataset.settings===settingsTab));renderSkinCards();renderAvatarCards();renderSourceEntries();renderLocalLists();$('opacity').value=state.opacity;$('opacityValue').textContent=state.opacity+'%';$('avatarEnable').checked=state.avatar;$('avatarSize').value=state.avatarSize;$('avatarSizeValue').textContent=state.avatarSize+'%';$('danceMode').value=state.dance;$('haptic').value=state.haptic;$('hapticValue').textContent=['Выкл.','Слабая','Средняя','Сильная'][state.haptic];$('quality').value=state.quality;$('failEnable').checked=state.failover;$('errorOnly').checked=state.errorOnly;$('failMessage').textContent=state.failover?'Автопереключение включено':'Автопереключение отключено';theme();updateAutoPreview()}
@@ -90,11 +118,14 @@ function updateAnimation(){if(analyser&&freqs&&!audio.paused){analyser.getByteFr
 $('settingsButton').onclick=()=>setScreen(screen==='settings'?'player':'settings');
 $('themeQuick').onclick=toggleTheme;
 document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>setScreen(b.dataset.back));
-$('libraryButton').onclick=()=>setScreen('library');$('autoButton').onclick=()=>gotoSettings('auto');
+$('libraryButton').onclick=()=>setScreen('library');$('queueButton').onclick=()=>setScreen('queue');$('autoButton').onclick=()=>gotoSettings('auto');
 $('srcPrev').onclick=()=>shiftSource(-1);$('srcNext').onclick=()=>shiftSource(1);
 let swipeX=0;const car=$('sourceCarousel');car.addEventListener('touchstart',e=>{swipeX=e.changedTouches[0].screenX},{passive:true});car.addEventListener('touchend',e=>{const d=e.changedTouches[0].screenX-swipeX;if(Math.abs(d)>30)shiftSource(d<0?1:-1)},{passive:true});
 $('play').onclick=playPause;$('rewind').onclick=()=>stepSeek(-10);$('fastForward').onclick=()=>stepSeek(10);holdSkip('back',-1);holdSkip('forward',1);
-$('seek').addEventListener('pointerdown',()=>{wasSliding=true});$('seek').addEventListener('input',e=>{const pct=Number(e.target.value)/10;e.target.style.setProperty('--pct',pct+'%');const len=audio.duration||currentSong().seconds||0;$('currentTime').textContent=timefmt(len*pct/100)});$('seek').addEventListener('change',e=>{const len=audio.duration||0;if(state.source==='local'&&Number.isFinite(len)&&len>0)audio.currentTime=len*Number(e.target.value)/1000;wasSliding=false;renderPlayback()});
+$('seek').addEventListener('pointerdown',()=>{wasSliding=true});$('seek').addEventListener('input',e=>{const pct=Number(e.target.value)/10;e.target.style.setProperty('--pct',pct+'%');const len=audio.duration||currentSong().seconds||0;$('currentTime').textContent=timefmt(len*pct/100)});$('seek').addEventListener('change',e=>{const len=audio.duration||0;if(nativeTrack()){
+ const delta=Math.round((nativeDuration*Number(e.target.value)/1000-nativePosition)/1000);
+ window.AndroidBridge?.seekNativeRelative?.(delta);
+}else if(state.source==='local'&&Number.isFinite(len)&&len>0)audio.currentTime=len*Number(e.target.value)/1000;wasSliding=false;renderPlayback()});
 $('opacity').oninput=e=>{state.opacity=Number(e.target.value);$('opacityValue').textContent=state.opacity+'%';$('deck').style.setProperty('--device-o',state.opacity/100);save()};
 $('themeSelect').onchange=e=>{state.theme=e.target.value;save();theme()};$('glassToggle').onchange=e=>{state.glass=e.target.checked;save();theme()};
 $('avatarEnable').onchange=e=>{state.avatar=e.target.checked;save();renderCarrier()};$('avatarSize').oninput=e=>{state.avatarSize=Number(e.target.value);save();$('avatarSizeValue').textContent=state.avatarSize+'%';renderCarrier()};$('danceMode').onchange=e=>{state.dance=e.target.value;save();renderCarrier()};
@@ -102,6 +133,12 @@ $('haptic').oninput=e=>{state.haptic=Number(e.target.value);save();$('hapticValu
 $('chooseFallback').onclick=()=>$('fallbackInput').click();$('fallbackInput').onchange=e=>{const file=e.target.files?.[0];if(!file)return;if(fallbackUrl.startsWith('blob:'))URL.revokeObjectURL(fallbackUrl);fallbackUrl=URL.createObjectURL(file);renderCarrier()};$('quality').onchange=e=>{state.quality=e.target.value;save()};$('failEnable').onchange=e=>{state.failover=e.target.checked;save();$('failMessage').textContent=state.failover?'Включено':'Отключено'};$('errorOnly').onchange=e=>{state.errorOnly=e.target.checked;save()};$('testFail').onclick=()=>tryFailover('тестовая ошибка');
 $('enableNativeMedia').onclick=()=>{if(window.AndroidBridge?.requestSessionAccess)window.AndroidBridge.requestSessionAccess();else notify('В APK откроется экран Android: Доступ к уведомлениям → RetroSound One. В браузерном демо разрешение недоступно.')};
 $('resetSources').onclick=()=>{state.order=ids.slice();state.hidden=['tidal'];state.source='local';save();renderSourceEntries();renderSourceCarousel();renderCarrier()};
+window.retroNativeState=function(x){
+ nativePlaying=!!x.playing;
+ nativeDuration=Math.max(0,Number(x.duration)||0);
+ nativePosition=Math.max(0,Number(x.position)||0);
+ if(nativeTrack())renderPlayback();
+};
 window.retroNativeTracks = function(items){localTracks.length=0;items.forEach((t,i)=>localTracks.push({...t,id:'native-'+i,bpm:110,dance:'swing',genre:'unknown'}));currentLocalIndex=-1;renderLocalLists();$('libraryButton').textContent='♫ Коллекция · '+items.length+' моих треков';notify('Папка сохранена. Найдено '+items.length+' треков. Нажмите Play для запуска.');if(items.length && state.source==='local')setSong(0,true,false);};
 window.retroNativeFolderError = function(msg){notify(msg)};
 for(const id of ['pickFolder','addFolderFromLibrary'])$(id).onclick=()=>{if(window.AndroidBridge?.pickMusicFolder)window.AndroidBridge.pickMusicFolder();else $('folderInput').click()};$('pickFiles').onclick=()=>$('filesInput').click();$('folderInput').onchange=e=>importFiles(e.target.files);$('filesInput').onchange=e=>importFiles(e.target.files);
