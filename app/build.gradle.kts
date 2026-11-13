@@ -9,8 +9,8 @@ android {
         applicationId = "com.retrosound.one"
         minSdk = 29
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.9.0-beta"
+        versionCode = 10
+        versionName = "1.0.0-rc1"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
