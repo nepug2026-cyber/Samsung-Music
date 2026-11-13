@@ -1,1 +1,25 @@
-<?xml version="1.0" encoding="utf-8"?><vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108"><path android:fillColor="#17283D" android:pathData="M54,0A54,54 0,1 1,54 108A54,54 0,1 1,54 0Z"/><path android:fillColor="#2DD4BF" android:pathData="M54,10A44,44 0,1 1,54 98A44,44 0,1 1,54 10Z"/><path android:fillColor="#183047" android:pathData="M54,15A39,39 0,1 1,54 93A39,39 0,1 1,54 15Z"/><path android:fillColor="#F5CBA2" android:pathData="M54,35A17,17 0,1 1,54 69A17,17 0,1 1,54 35Z"/><path android:fillColor="#F5CBA2" android:pathData="M27,90Q29,71 43,70L65,70Q79,71 81,90Z"/><path android:fillColor="#102238" android:pathData="M37,46Q36,28 54,27Q73,28 71,46Q64,38 54,39Q45,39 37,46Z"/><path android:fillColor="#F8F4E9" android:pathData="M30,53L30,48Q30,23 54,23Q78,23 78,48L78,53L72,53L72,48Q72,29 54,29Q36,29 36,48L36,53Z"/><path android:fillColor="#F2A85C" android:pathData="M27,48Q27,44 31,44L37,44Q41,44 41,48L41,63Q41,67 37,67L31,67Q27,67 27,63ZM71,48Q71,44 75,44L81,44Q85,44 85,48L85,63Q85,67 81,67L75,67Q71,67 71,63Z"/><path android:fillColor="#2DD4BF" android:pathData="M76,64Q75,74 62,76L60,72Q70,71 71,63Z"/><path android:fillColor="#F8F4E9" android:pathData="M58,71L65,71L65,76L58,76Z"/></vector>
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+ android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+ <!-- A restrained retro equipment mark: radio, cassette and compact disc. -->
+ <path android:fillColor="#15212A" android:pathData="M54,4A50,50 0,1 1,54 104A50,50 0,1 1,54 4Z"/>
+ <path android:fillColor="#B88854" android:pathData="M54,7A47,47 0,1 1,54 101A47,47 0,1 1,54 7Z"/>
+ <path android:fillColor="#1C2831" android:pathData="M54,11A43,43 0,1 1,54 97A43,43 0,1 1,54 11Z"/>
+ <!-- Top: classic radio grille and tuned dial. -->
+ <path android:fillColor="#C7A67E" android:pathData="M24,25L84,25L89,29L89,52L84,56L24,56L19,52L19,29Z"/>
+ <path android:fillColor="#32383D" android:pathData="M23,29L85,29L85,52L23,52Z"/>
+ <path android:fillColor="#D9B47C" android:pathData="M29,34L63,34L63,45L29,45Z"/>
+ <path android:fillColor="#66523B" android:pathData="M31,36L61,36L61,43L31,43Z"/>
+ <path android:fillColor="#F2D39A" android:pathData="M47,35L49,35L49,44L47,44Z"/>
+ <path android:fillColor="#B2C4CB" android:pathData="M67,35L81,35L81,37L67,37ZM67,40L81,40L81,42L67,42ZM67,45L81,45L81,47L67,47Z"/>
+ <!-- Bottom-left: cassette and its two hubs. -->
+ <path android:fillColor="#D6B88F" android:pathData="M19,61L60,61L63,64L63,85L60,88L19,88L16,85L16,64Z"/>
+ <path android:fillColor="#292C34" android:pathData="M21,66L58,66L58,82L21,82Z"/>
+ <path android:fillColor="#D0D9DC" android:pathData="M30,71A6,6 0,1 1,30 83A6,6 0,1 1,30 71ZM49,71A6,6 0,1 1,49 83A6,6 0,1 1,49 71Z"/>
+ <path android:fillColor="#4B606D" android:pathData="M30,74A3,3 0,1 1,30 80A3,3 0,1 1,30 74ZM49,74A3,3 0,1 1,49 80A3,3 0,1 1,49 74Z"/>
+ <!-- Bottom-right: silver compact disc with a central aperture. -->
+ <path android:fillColor="#D6E3E8" android:pathData="M79,59A18,18 0,1 1,79 95A18,18 0,1 1,79 59Z"/>
+ <path android:fillColor="#829CA8" android:pathData="M79,63A14,14 0,1 1,79 91A14,14 0,1 1,79 63Z"/>
+ <path android:fillColor="#EAC99B" android:pathData="M79,67A10,10 0,1 1,79 87A10,10 0,1 1,79 67Z"/>
+ <path android:fillColor="#2A3941" android:pathData="M79,72A5,5 0,1 1,79 82A5,5 0,1 1,79 72Z"/>
+</vector>

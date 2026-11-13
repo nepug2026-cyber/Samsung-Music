@@ -18,6 +18,7 @@ let nativePlaying=false,nativePosition=0,nativeDuration=0;
 const nativeTrack=()=>state.source==='local'&&currentLocalIndex>=0&&String(localTracks[currentLocalIndex]?.src||'').startsWith('native:');
 try{const saved=JSON.parse(localStorage.getItem('retrosound-v05')||'null');if(saved){state={...defaultState,...saved};state.order=ids.filter(x=>state.order.includes(x)).concat(ids.filter(x=>!state.order.includes(x)));state.hidden=state.hidden.filter(x=>ids.includes(x));}}catch{}
 const audio=$('audio');audio.crossOrigin=null;let playContext=null,analyser=null,freqs=null,wasSliding=false,longPress=null,ignoreClick=false,fallbackUrl='';
+try{fallbackUrl=localStorage.getItem('retrosound-background-v1')||''}catch(_){}
 const demoTracks=(window.RETRO_TRACKS||[]).map(t=>({...t,cover:`assets/covers/${t.id}.webp`,src:`assets/music/${t.id}.mp3`,demo:true}));
 function save(){try{localStorage.setItem('retrosound-v05',JSON.stringify(state));window.AndroidBridge?.saveState(JSON.stringify({order:state.order,hidden:state.hidden,selected:state.source}));}catch{}}
 function safe(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&quot;'}[c]))}
@@ -92,21 +93,38 @@ function holdSkip(id,dir){const b=$(id);let timer=null,interval=null,long=false;
  b.addEventListener('pointerdown',e=>{if(e.button!==0)return;long=false;timer=setTimeout(()=>{long=true;vibration();stepSeek(dir*6);interval=setInterval(()=>stepSeek(dir*3),220)},520)});
  for(const k of ['pointerup','pointercancel','pointerleave'])b.addEventListener(k,stop);
  b.addEventListener('click',()=>{if(ignoreClick){ignoreClick=false;return}skipSong(dir)})}
+// Render only the visible page: a 3,000+ item collection must not create 6,000 DOM cards at once.
+function appendTrackPage(box,rows,from,local,queue=false){
+ const upto=Math.min(from+120,rows.length),fragment=document.createDocumentFragment();
+ for(let i=from;i<upto;i++){
+  const song=rows[i],b=document.createElement('button');
+  b.className='track-card'+(i===(local?currentLocalIndex:trackIndex)?' active':'');
+  const label='<span><strong>'+safe(song.title)+'</strong><small>'+safe(song.artist||song.album||'RetroSound')+'</small></span><span>▶</span>';
+  b.innerHTML=(queue?'':art(song))+label;
+  b.onclick=()=>{setSong(i,local,true);setScreen('player')};
+  fragment.append(b);
+ }
+ box.append(fragment);
+ if(upto<rows.length){
+  const more=document.createElement('button');more.className='track-card';
+  more.textContent='Показать ещё · '+upto+' / '+rows.length;
+  more.onclick=()=>{more.remove();appendTrackPage(box,rows,upto,local,queue)};
+  box.append(more);
+ }
+}
 function renderQueue(){
- const box=$('queueList');if(!box)return;
- box.replaceChildren();
- const useLocal=state.source==='local'&&localTracks.length>0;
- const rows=useLocal?localTracks:demoTracks;
- rows.forEach((song,i)=>{
-  const b=document.createElement('button');
-  b.className='track-card'+(i===(useLocal?currentLocalIndex:trackIndex)?' active':'');
-  b.innerHTML='<span><strong>'+safe(song.title)+'</strong><small>'+safe(song.artist||song.album||'RetroSound')+'</small></span><span>▶</span>';
-  b.onclick=()=>{setSong(i,useLocal,true);setScreen('player')};
-  box.append(b);
- });
+ const box=$('queueList');if(!box)return;box.replaceChildren();
+ const local=state.source==='local'&&localTracks.length>0;
+ appendTrackPage(box,local?localTracks:demoTracks,0,local,true);
 }
 function renderLibrary(){const box=$('trackList');box.replaceChildren();demoTracks.forEach((s,i)=>{const b=document.createElement('button');b.className='track-card'+(currentLocalIndex<0&&state.source==='local'&&trackIndex===i?' active':'');b.innerHTML=`${art(s)}<span><strong>${safe(s.title)}</strong><small>${safe(s.album)} · ${safe(s.style)} · ${s.bpm} BPM · ${timefmt(s.seconds)}</small></span><span>▶</span>`;b.onclick=()=>{setSong(i,false,true);setScreen('player')};box.append(b)});renderLocalLists()}
-function renderLocalLists(){for(const box of [$('localList'),$('localSettingsList')]){box.replaceChildren();if(!localTracks.length){const p=document.createElement('p');p.className='muted tiny';p.textContent='Папка или файлы пока не выбраны';box.append(p)}localTracks.forEach((s,i)=>{const b=document.createElement('button');b.className='track-card'+(currentLocalIndex===i?' active':'');b.innerHTML=`${art(s)}<span><strong>${safe(s.title)}</strong><small>${safe(s.artist)} · ${safe(s.album)}</small></span><span>▶</span>`;b.onclick=()=>{setSong(i,true,true);setScreen('player')};box.append(b)})}}
+function renderLocalLists(){
+ for(const box of [$('localList'),$('localSettingsList')]){
+  box.replaceChildren();
+  if(!localTracks.length){const p=document.createElement('p');p.className='muted tiny';p.textContent='Папка или файлы пока не выбраны';box.append(p);continue}
+  appendTrackPage(box,localTracks,0,true);
+ }
+}
 function renderSettings(){if(settingsTab==='diagnostics')refreshDiagnosticPanel();const nav=$('settingsNav');nav.replaceChildren();menu.forEach(([id,title])=>{const b=document.createElement('button');b.textContent=title;b.className=id===settingsTab?'on':'';b.onclick=()=>{settingsTab=id;renderSettings()};nav.append(b)});document.querySelectorAll('.settings-page').forEach(e=>e.classList.toggle('shown',e.dataset.settings===settingsTab));renderSkinCards();renderAvatarCards();renderSourceEntries();renderLocalLists();$('opacity').value=state.opacity;$('opacityValue').textContent=state.opacity+'%';$('avatarEnable').checked=state.avatar;$('avatarSide').value=state.avatarSide||'left';$('avatarSize').value=state.avatarSize;$('avatarSizeValue').textContent=state.avatarSize+'%';$('danceMode').value=state.dance;$('haptic').value=state.haptic;$('hapticValue').textContent=['Выкл.','Слабая','Средняя','Сильная'][state.haptic];$('quality').value=state.quality;$('failEnable').checked=state.failover;$('errorOnly').checked=state.errorOnly;$('failMessage').textContent=state.failover?'Автопереключение включено':'Автопереключение отключено';theme();updateAutoPreview()}
 function renderSkinCards(){const grid=$('skinGrid');grid.replaceChildren();Object.entries(skinNames).forEach(([id,label])=>{const b=document.createElement('button');b.className='skin-option'+(id===state.skin?' on':'');b.innerHTML=`<img loading="lazy" src="${safe(imgAsset('assets/skins/'+id+'.webp'))}" alt="Цветной скетч ${safe(label)}"><b>${safe(label)}</b><small>${id===state.skin?'✓ Выбрано':'Выбрать оформление'}</small>`;b.onclick=()=>{state.skin=id;save();renderSkinCards();renderCarrier()};grid.append(b)})}
 function renderAvatarCards(){const grid=$('avatarGrid');grid.replaceChildren();(window.RetroAvatar3D?.models||window.RetroAvatarModels||[]).forEach((a,i)=>{const b=document.createElement('button');b.className='avatar-option'+(i===state.avatarIndex?' on':'');b.innerHTML=`<div class="avatar-figure">${safe(a.icon)}</div><b>${safe(a.name)}</b>`;b.onclick=()=>{state.avatarIndex=i;state.avatar=true;save();renderAvatarCards();$('avatarEnable').checked=true;renderCarrier();vibration()};grid.append(b)})}
@@ -120,7 +138,7 @@ const finish=()=>{if(!dragging||dragging.source!==id)return;clearTimeout(draggin
 function updateAutoPreview(){const s=currentSong();$('carTitle').textContent=s.title;$('carArtist').textContent=s.artist;$('carCover').style.backgroundImage=`url('${imgAsset(s.cover||'')}')`;const carSources=$('carSourceList');if(carSources){carSources.replaceChildren();visible().forEach(src=>{const b=document.createElement('button');b.className='car-source'+(src===state.source?' active':'');b.textContent=sourceNames[src];b.onclick=()=>{selectSource(src);updateAutoPreview()};carSources.append(b)})}}
 function tryFailover(reason){if(!state.failover){$('failMessage').textContent='Сбой: '+reason+'. Автопереключение выключено.';return}const v=visible();if(v.length<2){$('failMessage').textContent='Нет доступного резервного источника.';return}const old=state.source;const next=v[(v.indexOf(old)+1)%v.length];selectSource(next);const msg=`Сбой: ${reason}. ${sourceNames[old]} → ${sourceNames[next]}. ${next!=='local'?'Нужна авторизация в официальном приложении.':'Можно воспроизводить локальную музыку.'}`;$('failMessage').textContent=msg;notify(msg)}
 async function readID3(file){if(!/\.mp3$/i.test(file.name))return{};try{const arr=new Uint8Array(await file.slice(0,Math.min(file.size,2000000)).arrayBuffer());if(String.fromCharCode(...arr.slice(0,3))!=='ID3')return{};const result={};const ss=b=>((b[0]&127)<<21)|((b[1]&127)<<14)|((b[2]&127)<<7)|(b[3]&127);const be=b=>b[0]*16777216+b[1]*65536+b[2]*256+b[3];let pos=10,ver=arr[3],end=Math.min(arr.length,ss(arr.slice(6,10))+10);if(ver<3||ver>4)return{};for(let i=0;i<350&&pos+10<end;i++){const tag=String.fromCharCode(...arr.slice(pos,pos+4)),len=ver===4?ss(arr.slice(pos+4,pos+8)):be(arr.slice(pos+4,pos+8));pos+=10;if(!/^[A-Z0-9]{4}$/.test(tag)||len<=0||pos+len>end)break;const data=arr.slice(pos,pos+len);pos+=len;if(['TIT2','TPE1','TALB','TCON','TBPM'].includes(tag)){let str='';try{const enc=data[0];str=new TextDecoder(enc===0?'iso-8859-1':'utf-8').decode(data.slice(1)).replaceAll('\0','').trim()}catch{}const k={TIT2:'title',TPE1:'artist',TALB:'album',TCON:'genre',TBPM:'bpm'}[tag];result[k]=str}if(tag==='APIC'&&data.length<1500000){let p=data.indexOf(0,1);if(p<0)continue;const mime=new TextDecoder().decode(data.slice(1,p));p+=2;const enc=data[0];if(enc===0||enc===3){while(p<data.length&&data[p]!==0)p++;p++}else{while(p+1<data.length&&!(data[p]===0&&data[p+1]===0))p+=2;p+=2}if(p<data.length&&/^image\/(png|jpeg|webp)$/i.test(mime)){result.coverUrl=URL.createObjectURL(new Blob([data.slice(p)],{type:mime}))}}}return result}catch{return{}}}
-async function importFiles(files){const music=[...files].filter(f=>/^audio\//.test(f.type)||/\.(mp3|flac|wav|ogg|m4a|aac|opus)$/i.test(f.name));if(!music.length){notify('В выбранной папке нет поддерживаемых аудиофайлов');return}let count=0;for(const file of music.slice(0,130)){const meta=await readID3(file);localTracks.push({id:'user-'+Date.now()+count,file,title:meta.title||file.name.replace(/\.[^.]+$/,''),artist:meta.artist||'Моя музыка',album:meta.album||'Локальные файлы',genre:meta.genre||'unknown',bpm:Number(meta.bpm)||110,dance:guessDance(meta.genre),coverUrl:meta.coverUrl||''});count++}renderLocalLists();notify(`Загружено ${count} музыкальных файлов. Можно воспроизводить их через экран «Коллекция».`)}
+async function importFiles(files){const music=[...files].filter(f=>/^audio\//.test(f.type)||/\.(mp3|flac|wav|ogg|m4a|aac|opus)$/i.test(f.name));if(!music.length){notify('В выбранной папке нет поддерживаемых аудиофайлов');return}let count=0;for(const file of music){const meta=await readID3(file);localTracks.push({id:'user-'+Date.now()+count,file,title:meta.title||file.name.replace(/\.[^.]+$/,''),artist:meta.artist||'Моя музыка',album:meta.album||'Локальные файлы',genre:meta.genre||'unknown',bpm:Number(meta.bpm)||110,dance:guessDance(meta.genre),coverUrl:meta.coverUrl||''});count++;if(count%40===0)await new Promise(r=>setTimeout(r,0))}renderLocalLists();notify(`Загружено ${count} музыкальных файлов. Можно воспроизводить их через экран «Коллекция».`)}
 function updateAnimation(){if(analyser&&freqs&&!audio.paused){analyser.getByteFrequencyData(freqs);let acc=0;for(let i=2;i<Math.min(46,freqs.length);i++)acc+=freqs[i];window.RetroAvatar3D?.set({level:acc/(44*255),position:audio.currentTime})}else window.RetroAvatar3D?.set({level:0,position:audio.currentTime||0});requestAnimationFrame(updateAnimation)}
 // Local log is always retained; automatic mail only works after a verified HTTPS relay is configured.
 function refreshDiagnosticPanel(){
@@ -153,7 +171,23 @@ $('opacity').oninput=e=>{state.opacity=Number(e.target.value);$('opacityValue').
 $('themeSelect').onchange=e=>{state.theme=e.target.value;save();theme()};$('glassToggle').onchange=e=>{state.glass=e.target.checked;save();theme()};
 $('avatarEnable').onchange=e=>{state.avatar=e.target.checked;save();renderCarrier()};$('avatarSide').onchange=e=>{state.avatarSide=e.target.value;save();renderCarrier()};$('avatarSize').oninput=e=>{state.avatarSize=Number(e.target.value);save();$('avatarSizeValue').textContent=state.avatarSize+'%';renderCarrier()};$('danceMode').onchange=e=>{state.dance=e.target.value;save();renderCarrier()};
 $('haptic').oninput=e=>{state.haptic=Number(e.target.value);save();$('hapticValue').textContent=['Выкл.','Слабая','Средняя','Сильная'][state.haptic]};
-$('chooseFallback').onclick=()=>$('fallbackInput').click();$('fallbackInput').onchange=e=>{const file=e.target.files?.[0];if(!file)return;if(fallbackUrl.startsWith('blob:'))URL.revokeObjectURL(fallbackUrl);fallbackUrl=URL.createObjectURL(file);renderCarrier()};$('quality').onchange=e=>{state.quality=e.target.value;save()};$('failEnable').onchange=e=>{state.failover=e.target.checked;save();$('failMessage').textContent=state.failover?'Включено':'Отключено'};$('errorOnly').onchange=e=>{state.errorOnly=e.target.checked;save()};$('testFail').onclick=()=>tryFailover('тестовая ошибка');
+$('chooseFallback').onclick=()=>$('fallbackInput').click();$('fallbackInput').onchange=async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ const tmp=URL.createObjectURL(file);
+ try{
+  const picture=new Image();
+  await new Promise((ok,fail)=>{picture.onload=ok;picture.onerror=fail;picture.src=tmp});
+  const scale=Math.min(1,1440/Math.max(picture.naturalWidth,picture.naturalHeight));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(picture.naturalWidth*scale));
+  canvas.height=Math.max(1,Math.round(picture.naturalHeight*scale));
+  canvas.getContext('2d').drawImage(picture,0,0,canvas.width,canvas.height);
+  const saved=canvas.toDataURL('image/jpeg',.76);
+  localStorage.setItem('retrosound-background-v1',saved);
+  fallbackUrl=saved;renderCarrier();notify('Фон сохранён и восстановится после перезапуска');
+ }catch(err){logIssue('background','save_failed');notify('Не удалось сохранить фон')}
+ finally{URL.revokeObjectURL(tmp)}
+};$('quality').onchange=e=>{state.quality=e.target.value;save()};$('failEnable').onchange=e=>{state.failover=e.target.checked;save();$('failMessage').textContent=state.failover?'Включено':'Отключено'};$('errorOnly').onchange=e=>{state.errorOnly=e.target.checked;save()};$('testFail').onclick=()=>tryFailover('тестовая ошибка');
 $('enableNativeMedia').onclick=()=>{if(window.AndroidBridge?.requestSessionAccess)window.AndroidBridge.requestSessionAccess();else notify('В APK откроется экран Android: Доступ к уведомлениям → RetroSound One. В браузерном демо разрешение недоступно.')};
 $('resetSources').onclick=()=>{state.order=ids.slice();state.hidden=['tidal'];state.source='local';save();renderSourceEntries();renderSourceCarousel();renderCarrier()};
 setInterval(()=>{if(nativeTrack())window.AndroidBridge?.requestNativeState?.()},1000);
