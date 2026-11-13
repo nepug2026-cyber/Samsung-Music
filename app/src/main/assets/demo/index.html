@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101822"><title>RetroSound One · 0.9</title><link rel="stylesheet" href="app.css"></head>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101822"><title>RetroSound One · 1.0 RC1</title><link rel="stylesheet" href="app.css"></head>
 <body data-theme="dark">
-<div id="startupSplash" class="startup-splash" aria-label="Запуск RetroSound One"><div class="splash-headphones">♫</div><strong>RETROSOUND ONE</strong><span>VERSION 0.9.0 BETA</span><div class="splash-wave">♪  ♫  ♪</div></div>
+<div id="startupSplash" class="startup-splash" aria-label="Запуск RetroSound One"><div class="splash-headphones">♫</div><strong>RETROSOUND ONE</strong><span>VERSION 1.0.0 RC1</span><div class="splash-wave">♪  ♫  ♪</div></div>
 <div class="app-shell">
 <header class="app-header">
-  <div class="brand"><span class="brand-icon" aria-hidden="true">♫</span><span><strong>RETROSOUND ONE</strong><small>VERSION 0.9 · MUSIC IN MOTION</small></span></div>
+  <div class="brand"><span class="brand-icon" aria-hidden="true">♫</span><span><strong>RETROSOUND ONE</strong><small>VERSION 1.0 RC1 · MUSIC IN MOTION</small></span></div>
   <div class="head-actions"><button id="themeQuick" class="glass-button icon-button" aria-label="Сменить тему" title="День / ночь">☾</button><button id="settingsButton" class="glass-button settings-btn" aria-label="Настройки">⚙ <span>Настройки</span></button></div>
 </header>
 <main>
@@ -27,9 +27,10 @@
    <button class="transport" id="forward" title="Следующий трек (долгое нажатие — перемотка)" aria-label="Следующий трек">⏭</button>
    <button class="transport mini" id="fastForward" title="Перемотка вперёд на 10 секунд" aria-label="Перемотка вперёд">⏩</button>
   </div>
-  <div class="player-bottom"><button class="thin-link" id="libraryButton">♫ Коллекция · 10 композиций</button><button class="thin-link" id="autoButton">◈ Android Auto</button></div>
+  <div class="player-bottom"><button class="thin-link" id="libraryButton">♫ Коллекция · 10 композиций</button><button class="thin-link" id="queueButton">☷ Очередь</button><button class="thin-link" id="autoButton">◈ Android Auto</button></div>
  </div>
 </section>
+<section id="queueScreen" class="screen" aria-label="Очередь воспроизведения"><div class="panel"><div class="section-header"><button class="back-button" data-back="player">←</button><h1>Очередь воспроизведения</h1></div><p class="muted">Выберите следующую композицию — можно перейти сразу через несколько треков.</p><div id="queueList" class="track-list"></div></div></section>
 <section id="libraryScreen" class="screen" aria-label="Коллекция музыки">
  <div class="panel"><div class="section-header"><button class="back-button" data-back="player">←</button><div><span class="eyebrow">МУЗЫКА</span><h1>Моя коллекция</h1></div></div>
   <p class="muted">10 полноценных оригинальных инструментальных композиций RetroSound Studio. Нажмите трек, чтобы воспроизвести.</p>
