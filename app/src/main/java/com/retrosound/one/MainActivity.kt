@@ -2,6 +2,13 @@ package com.retrosound.one
 
 import android.Manifest
 import android.app.Activity
+import android.content.ComponentName
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.ListenableFuture
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -38,6 +45,55 @@ class MainActivity : Activity() {
     private val folderPickerRequest = 109
     private val folderPrefs by lazy { getSharedPreferences("local_folder", MODE_PRIVATE) }
     private val folderUris = java.util.concurrent.ConcurrentHashMap<String, Uri>()
+    private var nativeController: MediaController? = null
+    private var nativeControllerFuture: ListenableFuture<MediaController>? = null
+
+    private val nativeListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) { sendNativeState() }
+        override fun onPlaybackStateChanged(state: Int) { sendNativeState() }
+        override fun onMediaItemTransition(item: MediaItem?, reason: Int) { sendNativeState() }
+    }
+    private fun sendNativeState() {
+        if (!::browser.isInitialized) return
+        val player = nativeController ?: return
+        val data = JSONObject()
+            .put("playing", player.isPlaying)
+            .put("position", player.currentPosition.coerceAtLeast(0L))
+            .put("duration", player.duration.coerceAtLeast(0L))
+        browser.evaluateJavascript("window.retroNativeState?.(" + data.toString() + ")", null)
+    }
+    private fun createMediaController() {
+        val future = MediaController.Builder(
+            this, SessionToken(this, ComponentName(this, CarMediaService::class.java))
+        ).buildAsync()
+        nativeControllerFuture = future
+        future.addListener({
+            try {
+                val controller = future.get()
+                nativeController = controller
+                controller.addListener(nativeListener)
+                sendNativeState()
+            } catch (e: Exception) {
+                browser.evaluateJavascript(
+                    "window.retroNativeFolderError?.(" + JSONObject.quote(
+                        "Не удалось открыть медиасервис: " + (e.message ?: "ошибка")
+                    ) + ")", null)
+            }
+        }, java.util.concurrent.Executor { runnable -> runOnUiThread(runnable) })
+    }
+    private fun playSelectedFile(key: String) {
+        val contentUri = folderUris[key] ?: return
+        val controller = nativeController ?: return
+        val item = MediaItem.Builder()
+            .setMediaId("rs:saf:$key")
+            .setUri(contentUri)
+            .setMediaMetadata(MediaMetadata.Builder().setTitle("Музыка телефона").build())
+            .build()
+        controller.setMediaItem(item)
+        controller.prepare()
+        controller.play()
+        sendNativeState()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,6 +154,7 @@ class MainActivity : Activity() {
         }
         setContentView(browser)
         browser.loadUrl("file:///android_asset/demo/index.html")
+        createMediaController()
         browser.postDelayed({ loadSavedFolder() }, 1100)
         requestAudioPermission()
     }
@@ -167,12 +224,13 @@ class MainActivity : Activity() {
                                 folderUris[key] = DocumentsContract.buildDocumentUriUsingTree(root, id)
                                 items.put(JSONObject().put("title", name.substringBeforeLast('.'))
                                     .put("artist", "Моя музыка").put("album", "Музыка телефона")
-                                    .put("src", "https://retrosound.local/audio/$key"))
+                                    .put("src", "native:$key").put("uri", folderUris[key].toString()))
                             }
                         }
                     }
                 }
                 val json = items.toString()
+                folderPrefs.edit().putString("tracks", json).apply()
                 runOnUiThread { browser.evaluateJavascript("window.retroNativeTracks?.($json)", null) }
             } catch (e: Exception) {
                 val message = JSONObject.quote(e.message ?: "Ошибка чтения папки")
@@ -187,6 +245,14 @@ class MainActivity : Activity() {
                 try { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
                 }, folderPickerRequest) } catch (_: Exception) { }
+            }
+        }
+        @JavascriptInterface fun playNativeKey(key: String) { runOnUiThread { playSelectedFile(key) } }
+        @JavascriptInterface fun pauseNative() { runOnUiThread { nativeController?.pause(); sendNativeState() } }
+        @JavascriptInterface fun seekNativeRelative(seconds: Int) {
+            runOnUiThread {
+                nativeController?.let { it.seekTo((it.currentPosition + seconds * 1000L).coerceAtLeast(0L)) }
+                sendNativeState()
             }
         }
         @JavascriptInterface fun saveState(payload: String) {
@@ -248,6 +314,8 @@ class MainActivity : Activity() {
         super.onBackPressed()
     }
     override fun onDestroy() {
+        nativeController?.removeListener(nativeListener)
+        nativeControllerFuture?.let { MediaController.releaseFuture(it) }
         browser.removeJavascriptInterface("AndroidBridge")
         browser.destroy()
         super.onDestroy()
