@@ -81,13 +81,13 @@ class MainActivity : Activity() {
             }
         }, java.util.concurrent.Executor { runnable -> runOnUiThread(runnable) })
     }
-    private fun playSelectedFile(key: String) {
+    private fun playSelectedFile(key: String, title: String) {
         val contentUri = folderUris[key] ?: return
         val controller = nativeController ?: return
         val item = MediaItem.Builder()
             .setMediaId("rs:saf:$key")
             .setUri(contentUri)
-            .setMediaMetadata(MediaMetadata.Builder().setTitle("Музыка телефона").build())
+            .setMediaMetadata(MediaMetadata.Builder().setTitle(title).build())
             .build()
         controller.setMediaItem(item)
         controller.prepare()
@@ -247,7 +247,8 @@ class MainActivity : Activity() {
                 }, folderPickerRequest) } catch (_: Exception) { }
             }
         }
-        @JavascriptInterface fun playNativeKey(key: String) { runOnUiThread { playSelectedFile(key) } }
+        @JavascriptInterface fun playNativeKey(key: String, title: String) { runOnUiThread { playSelectedFile(key, title) } }
+        @JavascriptInterface fun requestNativeState() { runOnUiThread { sendNativeState() } }
         @JavascriptInterface fun pauseNative() { runOnUiThread { nativeController?.pause(); sendNativeState() } }
         @JavascriptInterface fun seekNativeRelative(seconds: Int) {
             runOnUiThread {
