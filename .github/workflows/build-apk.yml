@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - main
+      - release/retrosound-one-1-0-rc1
 
 jobs:
   build:
